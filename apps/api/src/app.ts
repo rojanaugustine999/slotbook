@@ -6,6 +6,7 @@ import { env } from "./lib/env.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { availabilityRouter } from "./modules/availability/availability.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
+import { bookingsRouter, meRouter } from "./modules/bookings/bookings.routes.js";
 import { businessesRouter, publicRouter } from "./modules/businesses/businesses.routes.js";
 import { servicesRouter } from "./modules/services/services.routes.js";
 import { staffRouter } from "./modules/staff/staff.routes.js";
@@ -33,6 +34,8 @@ export function createApp() {
   app.use("/businesses", timeOffRouter); // adds /businesses/:id/staff/:staffId/time-off
   app.use("/b", publicRouter);
   app.use("/b", availabilityRouter); // adds /b/:slug/availability
+  app.use("/b", bookingsRouter); // adds /b/:slug/bookings
+  app.use("/me", meRouter); // adds /me/bookings
 
   // Order matters: these two must come after all routes.
   app.use(notFoundHandler);
