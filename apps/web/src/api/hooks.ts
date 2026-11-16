@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthProvider";
 import { api } from "./client";
-import type { Availability, Booking, Calendar, CreateBookingInput, OwnedBusiness, OwnerBooking, OwnerStatusChange, PublicBusiness, StaffMember, Stats } from "./types";
+import type { Availability, Booking, Calendar, CreateBookingInput, OwnedBusiness, OwnerBooking, OwnerService, OwnerStatusChange, PublicBusiness, ServiceInput, StaffMember, Stats } from "./types";
 
 // ─── Data hooks ──────────────────────────────────────────────────────────────
 // TanStack Query keeps a cache of everything we load. That gives us, with no extra
@@ -98,6 +98,51 @@ export function useCreateBusiness() {
       queryClient.setQueryData<OwnedBusiness[]>(["my-businesses"], (old) => [business, ...(old ?? [])]);
       void queryClient.invalidateQueries({ queryKey: ["my-businesses"] });
     },
+  });
+}
+
+// ─── Services (owner) ────────────────────────────────────────────────────────
+// After any change, three caches are out of date: this list, the staff list (it shows
+// service names), and the public booking page. Invalidating marks them stale, so they
+// load again the next time something shows them.
+// ──────────────────────────────────────────────────────────────────────────────
+function useRefreshAfterServiceChange(businessId: string) {
+  const queryClient = useQueryClient();
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: ["services", businessId] });
+    void queryClient.invalidateQueries({ queryKey: ["staff", businessId] });
+    void queryClient.invalidateQueries({ queryKey: ["business"] });
+  };
+}
+
+export function useServices(businessId: string) {
+  return useQuery({
+    queryKey: ["services", businessId],
+    queryFn: async () => (await api<{ services: OwnerService[] }>(`/businesses/${businessId}/services`)).services,
+  });
+}
+
+/** Adds a service, or changes one when an id is given. */
+export function useSaveService(businessId: string) {
+  const refresh = useRefreshAfterServiceChange(businessId);
+  return useMutation({
+    mutationFn: async ({ id, input }: { id?: string; input: ServiceInput }) =>
+      id
+        ? (await api<{ service: OwnerService }>(`/businesses/${businessId}/services/${id}`, { method: "PATCH", body: input })).service
+        : (await api<{ service: OwnerService }>(`/businesses/${businessId}/services`, { method: "POST", body: input })).service,
+    onSuccess: refresh,
+  });
+}
+
+/** Hides a service from customers, or shows it again. */
+export function useSetServiceActive(businessId: string) {
+  const refresh = useRefreshAfterServiceChange(businessId);
+  return useMutation({
+    mutationFn: async ({ id, active }: { id: string; active: boolean }) =>
+      active
+        ? api(`/businesses/${businessId}/services/${id}`, { method: "PATCH", body: { active: true } })
+        : api(`/businesses/${businessId}/services/${id}`, { method: "DELETE" }),
+    onSuccess: refresh,
   });
 }
 

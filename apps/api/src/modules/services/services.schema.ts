@@ -17,7 +17,11 @@ export const createServiceSchema = z.object({
 
 // For editing a service: same rules, but every field is optional,
 // so you can change just the price without resending the name.
-export const updateServiceSchema = createServiceSchema.partial();
+// Editing can also bring a hidden service back ({ "active": true }). Hiding stays on
+// DELETE, which reads better in the routes; both just flip the same column.
+export const updateServiceSchema = createServiceSchema.partial().extend({
+  active: z.boolean().optional(),
+});
 
 // TypeScript types made from the schemas, used by the service file next.
 export type CreateServiceInput = z.infer<typeof createServiceSchema>;

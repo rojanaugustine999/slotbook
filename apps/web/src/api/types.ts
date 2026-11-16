@@ -67,6 +67,23 @@ export interface OwnedBusiness {
   address: string | null;
 }
 
+/** A service as the owner sees it: includes hidden ones and the cleanup time. */
+export interface OwnerService {
+  id: string;
+  name: string;
+  durationMin: number;
+  bufferMin: number; // cleanup time after each appointment, not shown to customers
+  priceCents: number;
+  active: boolean;
+}
+
+export interface ServiceInput {
+  name: string;
+  durationMin: number;
+  bufferMin: number;
+  priceCents: number;
+}
+
 export interface StaffMember {
   id: string;
   name: string;

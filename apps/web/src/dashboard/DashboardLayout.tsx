@@ -136,6 +136,7 @@ export function DashboardLayout() {
             <nav className="mb-6 flex gap-1 border-b border-line" aria-label="Dashboard sections">
               <TabLink to="calendar">Calendar</TabLink>
               <TabLink to="stats">Stats</TabLink>
+              <TabLink to="services">Services</TabLink>
             </nav>
             <Outlet context={{ business } satisfies DashboardContext} />
           </div>

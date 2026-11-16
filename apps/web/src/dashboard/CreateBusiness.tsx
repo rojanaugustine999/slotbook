@@ -100,8 +100,8 @@ export function CreateBusiness() {
     createBusiness.mutate(
       { name: name.trim(), slug, timezone, address: address.trim() || undefined },
       {
-        // Setup tabs arrive in the next parts; until then the calendar is the dashboard's front page.
-        onSuccess: (business) => navigate(`/dashboard/${business.id}/calendar`, { replace: true }),
+        // A new salon has nothing to book yet, so setup starts with what it offers.
+        onSuccess: (business) => navigate(`/dashboard/${business.id}/services`, { replace: true }),
         onError: (error) => {
           const fieldErrors = fieldErrorsFrom(error);
           if (fieldErrors && Object.keys(fieldErrors).length > 0) setErrors(fieldErrors);
