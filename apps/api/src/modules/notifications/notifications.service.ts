@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/db.js";
+import { logger } from "../../lib/logger.js";
 import { sendEmail } from "../../lib/mailer.js";
 import { ACTIVE_STATUSES } from "../bookings/bookings.rules.js";
 import { buildEmail } from "./notifications.emails.js";
@@ -21,7 +22,7 @@ export async function runSafely(label: string, task: () => Promise<unknown>): Pr
   try {
     await task();
   } catch (err) {
-    console.error(`[notifications] ${label} failed:`, err);
+    logger.error({ err, task: label }, "notification task failed");
   }
 }
 

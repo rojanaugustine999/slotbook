@@ -1,4 +1,5 @@
 import { env } from "./env.js";
+import { logger } from "./logger.js";
 
 export interface Email {
   to: string;
@@ -14,7 +15,7 @@ export async function sendEmail(email: Email): Promise<void> {
   if (!env.RESEND_API_KEY) {
     outbox.push(email);
     if (outbox.length > 100) outbox.shift();
-    if (env.NODE_ENV === "development") console.log(`[email] to ${email.to}: ${email.subject}`);
+    if (env.NODE_ENV === "development") logger.info({ to: email.to, subject: email.subject }, "email printed, not sent (no RESEND_API_KEY)");
     return;
   }
 

@@ -12,6 +12,16 @@ const envSchema = z.object({
   REFRESH_TOKEN_DAYS: z.coerce.number().int().positive().default(30),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
 
+  // Logging: "silent" turns it off (the tests do this).
+  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
+
+  // Rate limiting. Turn off only for tests.
+  RATE_LIMIT_ENABLED: z.enum(["true", "false"]).default("true"),
+  // How many reverse proxies (Render, Nginx, ...) sit in front of the API. With 0,
+  // req.ip is the direct connection. With 1, it is the real visitor taken from the
+  // proxy's X-Forwarded-For header. Set it wrong and rate limits break (see app.ts).
+  TRUST_PROXY: z.coerce.number().int().min(0).default(0),
+
   // Job queue (reminders). Local Docker Redis by default.
   REDIS_URL: z.string().default("redis://localhost:6379"),
   QUEUE_PREFIX: z.string().default("slotbook"),

@@ -17,3 +17,4 @@ export const unauthorized = (message = "Not signed in") => new HttpError(401, "U
 export const forbidden = (message = "Not allowed") => new HttpError(403, "FORBIDDEN", message);
 export const notFound = (message = "Not found") => new HttpError(404, "NOT_FOUND", message);
 export const conflict = (message = "Conflict") => new HttpError(409, "CONFLICT", message);
+export const tooManyRequests = (message = "Too many requests. Please slow down.") => new HttpError(429, "RATE_LIMITED", message);

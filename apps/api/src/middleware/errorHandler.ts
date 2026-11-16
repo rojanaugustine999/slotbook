@@ -12,7 +12,7 @@ export const notFoundHandler: RequestHandler = (req, res) => {
 
 // Express 5 forwards errors thrown in (async) route handlers here automatically.
 // Every error response in the app has the same shape, which keeps the frontend simple.
-export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   const send = (status: number, code: string, message: string, details?: unknown) => {
     const body: ErrorBody = { error: { code, message, ...(details ? { details } : {}) } };
     res.status(status).json(body);
@@ -33,7 +33,8 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   }
 
   if (err instanceof Prisma.PrismaClientInitializationError) {
-    console.error("Database unreachable. Is Postgres running and DATABASE_URL correct?");
+    // req.log is a logger that stamps every line with this request's id.
+    req.log.error("Database unreachable. Is Postgres running and DATABASE_URL correct?");
     return send(503, "DB_UNAVAILABLE", "Service temporarily unavailable");
   }
 
@@ -42,6 +43,6 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     return send(409, "SLOT_TAKEN", "That time slot was just booked. Please pick another.");
   }
 
-  console.error(err);
+  req.log.error({ err }, "unhandled error"); // includes the stack trace and the request id
   send(500, "INTERNAL_ERROR", "Something went wrong");
 };

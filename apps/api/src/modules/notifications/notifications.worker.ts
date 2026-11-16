@@ -1,5 +1,6 @@
 import { Worker } from "bullmq";
 import { env } from "../../lib/env.js";
+import { logger } from "../../lib/logger.js";
 import { createRedisConnection } from "../../lib/redis.js";
 import { processNotification } from "./notifications.service.js";
 import { QUEUE_NAME } from "./notifications.queue.js";
@@ -21,7 +22,7 @@ export function startReminderWorker() {
   );
 
   worker.on("failed", (job, err) => {
-    console.error(`[notifications] job ${job?.id} failed (attempt ${job?.attemptsMade}):`, err.message);
+    logger.error({ err, jobId: job?.id, attempt: job?.attemptsMade }, "notification job failed");
   });
 
   return worker;

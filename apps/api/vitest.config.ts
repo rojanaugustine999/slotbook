@@ -13,6 +13,8 @@ export default defineConfig({
       // Redis database number 15, so tests never touch jobs in your development queue.
       REDIS_URL: "redis://localhost:6379/15",
       QUEUE_PREFIX: "slotbook-test",
+      LOG_LEVEL: "silent", // quiet test output; logging tests pass their own logger
+      RATE_LIMIT_ENABLED: "false", // tests make dozens of logins; the limiter tests turn it on themselves
       RESEND_API_KEY: "", // empty: emails go to the in-memory outbox, never to a real inbox
     },
 
