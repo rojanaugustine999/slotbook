@@ -11,6 +11,15 @@ const envSchema = z.object({
   ACCESS_TOKEN_TTL: z.string().default("15m"),
   REFRESH_TOKEN_DAYS: z.coerce.number().int().positive().default(30),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
+
+  // Job queue (reminders). Local Docker Redis by default.
+  REDIS_URL: z.string().default("redis://localhost:6379"),
+  QUEUE_PREFIX: z.string().default("slotbook"),
+
+  // Email. With no key, emails are printed to the console instead of sent,
+  // so you can build and test everything without an email account.
+  RESEND_API_KEY: z.string().optional(),
+  MAIL_FROM: z.string().default("SlotBook <onboarding@resend.dev>"),
 });
 
 const parsed = envSchema.safeParse(process.env);

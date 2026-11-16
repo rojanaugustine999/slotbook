@@ -10,6 +10,10 @@ export default defineConfig({
       NODE_ENV: "test",
       DATABASE_URL: "postgresql://slotbook:slotbook@localhost:5432/slotbook_test",
       JWT_ACCESS_SECRET: "test-secret-test-secret-test-secret-123",
+      // Redis database number 15, so tests never touch jobs in your development queue.
+      REDIS_URL: "redis://localhost:6379/15",
+      QUEUE_PREFIX: "slotbook-test",
+      RESEND_API_KEY: "", // empty: emails go to the in-memory outbox, never to a real inbox
     },
 
     // Runs once before all tests: creates the test database and its tables.

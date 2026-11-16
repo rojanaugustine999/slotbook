@@ -5,6 +5,7 @@ import { badRequest, HttpError, notFound } from "../../lib/errors.js";
 import { getPublicAvailability } from "../availability/availability.service.js";
 import { toRange } from "../availability/availability.js";
 import { getOwnedBusiness } from "../businesses/businesses.service.js";
+import { cancelForBooking, runSafely, scheduleForBooking } from "../notifications/notifications.service.js";
 import { checkStatusChange } from "./bookings.rules.js";
 import type { CreateBookingInput, OwnerBookingsQuery, RescheduleBookingInput } from "./bookings.schema.js";
 
@@ -104,8 +105,9 @@ export async function createBooking(slug: string, customerId: string, input: Cre
   // Layer 2: try to save. If the customer chose "anyone", slot.staffIds may hold
   // several people; when one was just taken by another customer, try the next.
   for (const staffId of slot.staffIds) {
+    let created;
     try {
-      return await prisma.booking.create({
+      created = await prisma.booking.create({
         data: {
           businessId: business.id,
           serviceId: input.serviceId,
@@ -120,7 +122,14 @@ export async function createBooking(slug: string, customerId: string, input: Cre
       });
     } catch (err) {
       if (!isDoubleBooking(err)) throw err; // a different problem: don't hide it
+      continue; // this staff member was just taken: try the next one
     }
+
+    // Saved. Now queue the confirmation and reminders. This sits OUTSIDE the
+    // try above (a queue problem is not a double booking) and is wrapped so that
+    // a Redis outage can never make a successful booking look like a failure.
+    await runSafely("schedule reminders", () => scheduleForBooking(created.id));
+    return created;
   }
 
   // Everyone who was free a moment ago has since been booked.
@@ -160,8 +169,9 @@ export async function cancelMyBooking(customerId: string, bookingId: string) {
   // "Check, then guarded update": the WHERE repeats the status we checked.
   // If the owner changed the booking in the moment between, no row matches
   // and we report that, instead of overwriting their change.
+  let cancelled;
   try {
-    return await prisma.booking.update({
+    cancelled = await prisma.booking.update({
       where: { id: booking.id, status: booking.status },
       data: { status: "cancelled" },
       select: bookingFields,
@@ -170,6 +180,10 @@ export async function cancelMyBooking(customerId: string, bookingId: string) {
     if (isNoRowMatched(err)) throw changedMeanwhile();
     throw err;
   }
+
+  // Stop the reminders, and tell the customer it's cancelled.
+  await runSafely("cancel reminders", () => cancelForBooking(booking.id, { notifyCustomer: true }));
+  return cancelled;
 }
 
 // Moves a booking to a new time (and optionally a different staff member).
@@ -194,8 +208,9 @@ export async function rescheduleMyBooking(customerId: string, bookingId: string,
 
   // Layer 2: updating the row in place. Postgres checks the new times against
   // every OTHER booking, so the double-booking rule still protects us here.
+  let moved;
   try {
-    return await prisma.booking.update({
+    moved = await prisma.booking.update({
       where: { id: booking.id, status: booking.status },
       data: { startsAt, endsAt, staffId },
       select: bookingFields,
@@ -205,6 +220,14 @@ export async function rescheduleMyBooking(customerId: string, bookingId: string,
     if (isNoRowMatched(err)) throw changedMeanwhile();
     throw err;
   }
+
+  // The old reminders were for the old time. Drop them (without telling the
+  // customer it was "cancelled") and plan fresh ones, including a new confirmation.
+  await runSafely("replace reminders", async () => {
+    await cancelForBooking(booking.id, { notifyCustomer: false });
+    await scheduleForBooking(booking.id);
+  });
+  return moved;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -245,8 +268,9 @@ export async function changeBookingStatus(businessId: string, bookingId: string,
   const reason = checkStatusChange(booking.status, to, booking.startsAt, new Date());
   if (reason) throw cannotChange(reason);
 
+  let updated;
   try {
-    return await prisma.booking.update({
+    updated = await prisma.booking.update({
       where: { id: booking.id, status: booking.status },
       data: { status: to },
       select: ownerBookingFields,
@@ -255,4 +279,11 @@ export async function changeBookingStatus(businessId: string, bookingId: string,
     if (isNoRowMatched(err)) throw changedMeanwhile();
     throw err;
   }
+
+  // The owner cancelled it: same as a customer cancelling. (completed and no_show
+  // happen after the start, so no reminders are left to stop.)
+  if (to === "cancelled") {
+    await runSafely("cancel reminders", () => cancelForBooking(booking.id, { notifyCustomer: true }));
+  }
+  return updated;
 }
