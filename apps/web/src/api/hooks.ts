@@ -1,7 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthProvider";
 import { api } from "./client";
-import type { Availability, Booking, CreateBookingInput, PublicBusiness } from "./types";
+import type { Availability, Booking, Calendar, CreateBookingInput, OwnedBusiness, OwnerBooking, OwnerStatusChange, PublicBusiness, StaffMember } from "./types";
 
 // ─── Data hooks ──────────────────────────────────────────────────────────────
 // TanStack Query keeps a cache of everything we load. That gives us, with no extra
@@ -63,6 +63,48 @@ export function useCancelBooking() {
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ["my-bookings"] });
       void queryClient.invalidateQueries({ queryKey: ["availability"] });
+    },
+  });
+}
+
+// ─── Owner hooks ─────────────────────────────────────────────────────────────
+
+/** The businesses the signed-in person owns. Empty for a plain customer. */
+export function useMyBusinesses() {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: ["my-businesses"],
+    enabled: status === "signedIn",
+    staleTime: 60_000,
+    queryFn: async () => (await api<{ businesses: OwnedBusiness[] }>("/businesses/mine")).businesses,
+  });
+}
+
+export function useStaff(businessId: string) {
+  return useQuery({
+    queryKey: ["staff", businessId],
+    staleTime: 60_000,
+    queryFn: async () => (await api<{ staff: StaffMember[] }>(`/businesses/${businessId}/staff`)).staff,
+  });
+}
+
+/** Bookings grouped by day for a date range (at most 31 days). Re-checks every minute, because customers keep booking. */
+export function useCalendar(businessId: string, from: string, to: string) {
+  return useQuery({
+    queryKey: ["calendar", businessId, from, to],
+    refetchInterval: 60_000,
+    placeholderData: keepPreviousData, // while the next week loads, keep showing this one instead of flashing empty
+    queryFn: async () => (await api<{ calendar: Calendar }>(`/businesses/${businessId}/calendar?from=${from}&to=${to}`)).calendar,
+  });
+}
+
+export function useChangeBookingStatus(businessId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ bookingId, status }: { bookingId: string; status: OwnerStatusChange }) =>
+      (await api<{ booking: OwnerBooking }>(`/businesses/${businessId}/bookings/${bookingId}/status`, { method: "PATCH", body: { status } })).booking,
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["calendar", businessId] });
     },
   });
 }

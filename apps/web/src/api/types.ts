@@ -58,6 +58,39 @@ export interface Booking {
   business: { name: string; slug: string; timezone: string };
 }
 
+// ── Owner side ──────────────────────────────────────────────────────────────
+export interface OwnedBusiness {
+  id: string;
+  name: string;
+  slug: string;
+  timezone: string;
+  address: string | null;
+}
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  active: boolean;
+  services: { id: string; name: string }[];
+}
+
+// What an owner sees of a booking: the customer's contact details too.
+export interface OwnerBooking extends Booking {
+  customer: { id: string; name: string; email: string; phone: string | null };
+}
+
+export interface CalendarDay {
+  date: string; // "2026-11-23", a calendar day in the salon's timezone
+  bookings: OwnerBooking[]; // soonest first
+}
+
+export interface Calendar {
+  timezone: string;
+  days: CalendarDay[]; // every day in the range, even empty ones
+}
+
+export type OwnerStatusChange = "cancelled" | "completed" | "no_show";
+
 export interface CreateBookingInput {
   serviceId: string;
   staffId?: string; // leave out for "anyone"

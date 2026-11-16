@@ -23,7 +23,7 @@ export function Button({ variant = "secondary", loading, block, className, disab
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cn(
-        "inline-flex h-11 items-center justify-center gap-2 rounded-control border px-4 text-[15px] font-medium transition-colors",
+        "inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-control border px-4 text-[15px] font-medium transition-colors",
         "disabled:opacity-50",
         variants[variant],
         block && "w-full",

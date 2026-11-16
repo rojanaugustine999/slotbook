@@ -101,9 +101,16 @@ Deploying it: see [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Web app
 
-`apps/web` is a React, Vite and Tailwind app that talks to the API. So far it has the customer
-booking page (`/glow-salon`: pick a service, person, day and time, then confirm) and "My bookings"
-(`/me`, with cancel). The owner calendar and stats dashboard come next.
+`apps/web` is a React, Vite and Tailwind app that talks to the API. It has:
+
+- the customer **booking page** (`/glow-salon`: pick a service, person, day and time, then confirm)
+  and **My bookings** (`/me`, with cancel);
+- the owner **weekly calendar** (`/dashboard`): a week grid with one colour per staff member,
+  simultaneous bookings side by side, a "now" line, filters, and a details dialog to cancel an
+  upcoming booking or mark a past one completed or a no-show. On a phone it becomes a day-by-day list.
+
+The stats dashboard is next. To try the owner side locally, sign in as `owner@slotbook.test`
+(created by `npm run db:seed`).
 
 ```bash
 npm run dev -w @slotbook/web         # http://localhost:5173 (the API must be running on port 4000)
@@ -177,8 +184,8 @@ docs/DEPLOY.md                    putting it online
 - [x] **Week 7:** owner calendar and stats, rate limiting, structured logging
 - [x] **Week 8:** Dockerfile, GitHub Actions CI, deployment guide, architecture diagram
 
-Frontend, in progress: customer booking page and "My bookings" are built; the owner calendar and stats
-dashboard are next.
+Frontend, in progress: the customer booking page, "My bookings" and the owner calendar are built; the
+stats dashboard is next.
 
 Ideas for later: Google Calendar sync, Stripe deposits to reduce no-shows,
 a waitlist, and a Claude-powered "book by chat" assistant.

@@ -1,4 +1,5 @@
 import { Link, NavLink, Outlet } from "react-router";
+import { useMyBusinesses } from "./api/hooks";
 import { useAuth } from "./auth/AuthProvider";
 import { useAuthDialog } from "./auth/AuthDialog";
 import { cn } from "./lib/cn";
@@ -17,6 +18,8 @@ export function Logo({ className }: { className?: string }) {
 export function Layout() {
   const { status, user, signOut } = useAuth();
   const openAuth = useAuthDialog();
+  const businesses = useMyBusinesses();
+  const isOwner = (businesses.data?.length ?? 0) > 0; // only owners see the Dashboard link
 
   return (
     <div className="min-h-dvh">
@@ -24,21 +27,28 @@ export function Layout() {
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <Link to="/" className="flex items-center gap-2 text-[17px] font-medium">
             <Logo />
-            SlotBook
+            {/* The word is dropped on phones, so the navigation has room. The logo is still a link home. */}
+            <span className="hidden sm:inline">SlotBook</span>
+            <span className="sr-only sm:hidden">SlotBook home</span>
           </Link>
           <nav className="flex items-center gap-1" aria-label="Main">
             {status === "signedIn" && user && (
               <>
-                <NavLink to="/me" className={({ isActive }) => cn("rounded-control px-3 py-2 text-[15px]", isActive ? "bg-sunken font-medium" : "text-ink-2 hover:bg-sunken hover:text-ink")}>
+                {isOwner && (
+                  <NavLink to="/dashboard" className={({ isActive }) => cn("whitespace-nowrap rounded-control px-2.5 py-2 text-[15px] sm:px-3", isActive ? "bg-sunken font-medium" : "text-ink-2 hover:bg-sunken hover:text-ink")}>
+                    Dashboard
+                  </NavLink>
+                )}
+                <NavLink to="/me" className={({ isActive }) => cn("whitespace-nowrap rounded-control px-2.5 py-2 text-[15px] sm:px-3", isActive ? "bg-sunken font-medium" : "text-ink-2 hover:bg-sunken hover:text-ink")}>
                   My bookings
                 </NavLink>
-                <Button variant="ghost" className="h-10 px-3" onClick={() => void signOut()}>
+                <Button variant="ghost" className="h-10 px-2.5 sm:px-3" onClick={() => void signOut()}>
                   Sign out
                 </Button>
               </>
             )}
             {status === "signedOut" && (
-              <Button variant="ghost" className="h-10 px-3" onClick={() => openAuth()}>
+              <Button variant="ghost" className="h-10 px-2.5 sm:px-3" onClick={() => openAuth()}>
                 Sign in
               </Button>
             )}

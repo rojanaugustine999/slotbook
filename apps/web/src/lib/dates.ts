@@ -59,3 +59,57 @@ export function partOfDay(time: string): PartOfDay {
   if (hour < 17) return "Afternoon";
   return "Evening";
 }
+
+// ─── Week and calendar helpers ───────────────────────────────────────────────
+// These work on plain "YYYY-MM-DD" dates. A calendar day has no timezone of its own, so
+// adding days to it is simple date arithmetic.
+
+/** The Monday of the week that contains `date`. */
+export function startOfWeek(date: string): string {
+  return DateTime.fromISO(date).startOf("week").toFormat("yyyy-MM-dd");
+}
+
+export function shiftDays(date: string, days: number): string {
+  return DateTime.fromISO(date).plus({ days }).toFormat("yyyy-MM-dd");
+}
+
+/** Today's date as it is right now in the salon's timezone. */
+export function todayIn(timezone: string, now: DateTime = DateTime.now()): string {
+  return now.setZone(timezone).toFormat("yyyy-MM-dd");
+}
+
+/** Minutes after local midnight, in the salon's timezone: 10:30 is 630. */
+export function minutesOfDay(iso: string, timezone: string): number {
+  const moment = DateTime.fromISO(iso, { zone: timezone });
+  return moment.hour * 60 + moment.minute;
+}
+
+/** The calendar day a stored moment falls on IN THE SALON: "2026-11-17" for 00:30 in Kochi, even though that is still the 16th in UTC. */
+export function localDate(iso: string, timezone: string): string {
+  return DateTime.fromISO(iso, { zone: timezone }).toFormat("yyyy-MM-dd");
+}
+
+/** "10:30 am" for a stored moment, on the salon's clock. */
+export function formatTimeOf(iso: string, timezone: string): string {
+  return DateTime.fromISO(iso, { zone: timezone }).toFormat("h:mm a").toLowerCase();
+}
+
+/** "10:00 am to 11:00 am" */
+export function formatTimeRange(startIso: string, endIso: string, timezone: string): string {
+  return `${formatTimeOf(startIso, timezone)} to ${formatTimeOf(endIso, timezone)}`;
+}
+
+/** "23 to 29 Nov 2026", or "30 Nov to 6 Dec 2026" when the week crosses a month. */
+export function formatWeekRange(start: string): string {
+  const first = DateTime.fromISO(start);
+  const last = first.plus({ days: 6 });
+  if (first.year !== last.year) return `${first.toFormat("d LLL yyyy")} to ${last.toFormat("d LLL yyyy")}`;
+  if (first.month !== last.month) return `${first.toFormat("d LLL")} to ${last.toFormat("d LLL yyyy")}`;
+  return `${first.toFormat("d")} to ${last.toFormat("d LLL yyyy")}`;
+}
+
+/** "9 am", "12 pm", "5 pm" for the hour labels down the side of the calendar. */
+export function formatHourLabel(hour: number): string {
+  const display = hour % 12 === 0 ? 12 : hour % 12;
+  return `${display} ${hour < 12 ? "am" : "pm"}`;
+}

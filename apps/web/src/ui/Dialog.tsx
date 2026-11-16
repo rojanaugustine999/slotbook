@@ -29,7 +29,7 @@ export function Dialog({ open, onClose, title, children }: Props) {
         if (event.target === ref.current) onClose(); // a click on the dimmed backdrop
       }}
       aria-labelledby="dialog-title"
-      className="m-auto w-[min(92vw,26rem)] rounded-card border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/40"
+      className="m-auto w-[min(92vw,28rem)] rounded-card border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/40"
     >
       {open && (
         <div className="p-6">
