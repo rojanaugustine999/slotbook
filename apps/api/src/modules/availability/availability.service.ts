@@ -7,7 +7,9 @@ import type { AvailabilityQuery } from "./availability.schema.js";
 // This file is the "glue": it loads the facts from the database and hands them
 // to the pure getAvailableSlots function. All the hard thinking stays in that
 // function, where it is easy to test.
-export async function getPublicAvailability(slug: string, query: AvailabilityQuery) {
+// ignoreBookingId: when a customer reschedules, their existing booking must not
+// block the new time (moving 09:30 to 09:45 overlaps the old 09:30 booking).
+export async function getPublicAvailability(slug: string, query: AvailabilityQuery, options: { ignoreBookingId?: string } = {}) {
   const business = await prisma.business.findUnique({
     where: { slug },
     select: { id: true, timezone: true, minNoticeMinutes: true, maxAdvanceDays: true },
@@ -50,6 +52,7 @@ export async function getPublicAvailability(slug: string, query: AvailabilityQue
       bookings: {
         where: {
           status: { in: ["pending", "confirmed"] },
+          ...(options.ignoreBookingId ? { id: { not: options.ignoreBookingId } } : {}),
           startsAt: { lt: wholeDay.endsAt },
           endsAt: { gt: wholeDay.startsAt },
         },

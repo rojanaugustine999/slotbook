@@ -6,7 +6,7 @@ import { env } from "./lib/env.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { availabilityRouter } from "./modules/availability/availability.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
-import { bookingsRouter, meRouter } from "./modules/bookings/bookings.routes.js";
+import { bookingsRouter, meRouter, ownerBookingsRouter } from "./modules/bookings/bookings.routes.js";
 import { businessesRouter, publicRouter } from "./modules/businesses/businesses.routes.js";
 import { servicesRouter } from "./modules/services/services.routes.js";
 import { staffRouter } from "./modules/staff/staff.routes.js";
@@ -31,6 +31,7 @@ export function createApp() {
   app.use("/businesses", servicesRouter); // adds /businesses/:id/services
   app.use("/businesses", staffRouter); // adds /businesses/:id/staff
   app.use("/businesses", workingHoursRouter); // adds /businesses/:id/staff/:staffId/working-hours
+  app.use("/businesses", ownerBookingsRouter); // adds /businesses/:id/bookings
   app.use("/businesses", timeOffRouter); // adds /businesses/:id/staff/:staffId/time-off
   app.use("/b", publicRouter);
   app.use("/b", availabilityRouter); // adds /b/:slug/availability
