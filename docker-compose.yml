@@ -1,5 +1,11 @@
-# Local development services.
-# Start:  docker compose up -d      Stop: docker compose down
+# Docker services for SlotBook.
+#
+# Everyday development (database and Redis only; you run the API yourself with npm run dev):
+#     docker compose up -d          stop: docker compose down
+#
+# The whole thing, API included, running from the Dockerfile exactly as a host would run it:
+#     JWT_ACCESS_SECRET=<a long random string> docker compose --profile full up --build
+#
 # Data lives in named volumes, so it survives restarts. `docker compose down -v` wipes it.
 services:
   postgres:
@@ -12,12 +18,40 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # "Is the database ready for connections?" Other services wait for a yes before starting.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U slotbook"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
-  # Not needed until Week 6 (reminder jobs with BullMQ).
+  # Job queue for reminder emails, and the counters for rate limiting.
   redis:
     image: redis:7
     ports:
       - "6379:6379"
+
+  # The API, built from the Dockerfile. Only starts with --profile full, so a plain
+  # `docker compose up` still gives you just the database and Redis for development.
+  api:
+    profiles: ["full"]
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      # Inside Docker's private network the services are reached by NAME ("postgres", "redis"), not localhost.
+      DATABASE_URL: postgresql://slotbook:slotbook@postgres:5432/${API_DB_NAME:-slotbook}
+      REDIS_URL: redis://redis:6379
+      # No made-up default: a secret baked into a file is a security hole. If you forget to set
+      # it, the app refuses to start and says so (it must be at least 32 characters).
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+    ports:
+      - "${API_PORT:-4000}:4000"
 
 volumes:
   pgdata:

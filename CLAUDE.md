@@ -25,3 +25,9 @@ I'm a UI/UX designer and front-end developer **learning backend development** wi
 - `npm test` / `npm run test:watch`
 - `npm run typecheck`
 - `npm run db:migrate`: create/apply migrations · `npm run db:seed` · `npm run db:studio`
+
+## Docker, CI and tests
+- Tests need Docker running (Postgres `slotbook_test` and Redis database 15). Never run two test runs at once: they share those databases.
+- `docker compose up -d`: Postgres and Redis only. `JWT_ACCESS_SECRET=... docker compose --profile full up --build`: the API too, from the Dockerfile.
+- `.github/workflows/ci.yml` runs type check, tests and an image build on every push. Deployment steps are in `docs/DEPLOY.md`.
+- The reminder worker runs inside the API process (`server.ts`). Rate limiting and logging are set up in `app.ts`.

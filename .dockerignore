@@ -1,0 +1,27 @@
+# Files Docker should NOT send to the build. Keeping them out makes builds faster,
+# and above all keeps secrets (.env) from ever ending up inside an image.
+.git
+.github
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Rebuilt inside the image
+**/node_modules
+**/dist
+**/coverage
+
+# Secrets and local settings
+**/.env
+**/.env.*
+!**/.env.example
+
+# Not needed to run the app
+**/tests
+**/*.test.ts
+**/vitest.config.ts
+README.md
+CLAUDE.md
+docs
+**/*.log

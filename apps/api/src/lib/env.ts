@@ -40,5 +40,13 @@ if (!parsed.success) {
   process.exit(1);
 }
 
+// A deployed API must never run with the placeholder secret copied from .env.example:
+// anyone who has read this repository would know it and could forge login tokens.
+if (parsed.data.NODE_ENV === "production" && /change-me/i.test(parsed.data.JWT_ACCESS_SECRET)) {
+  console.error("JWT_ACCESS_SECRET is still the placeholder from .env.example. Generate a real one:");
+  console.error("  node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\"");
+  process.exit(1);
+}
+
 export const env = parsed.data;
 export const isProd = env.NODE_ENV === "production";

@@ -1,0 +1,87 @@
+# ─── Continuous integration (CI) ─────────────────────────────────────────────
+# Every time you push code, or open a pull request, GitHub starts a fresh computer
+# and runs the checks below. If anything fails, the commit gets a red cross and you
+# find out in minutes, not after it has broken something in production.
+# Nobody has to remember to run the tests: the machine does it, every time.
+# ──────────────────────────────────────────────────────────────────────────────
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# If you push again while a run is still going, cancel the old run: it is out of date.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Type check and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # The tests need a real PostgreSQL and a real Redis, like on your machine. GitHub
+    # starts both as containers next to the job. The passwords and ports match what
+    # apps/api/vitest.config.ts expects (user slotbook, localhost:5432 and :6379).
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: slotbook
+          POSTGRES_PASSWORD: slotbook
+          POSTGRES_DB: slotbook
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U slotbook"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm # keeps downloaded packages between runs, so installs are fast
+
+      # "ci" installs exactly what package-lock.json says, and fails if it is out of date.
+      # That is what you want on a build machine: the same versions every time.
+      - run: npm ci
+
+      - name: Generate the Prisma client
+        run: npx prisma generate
+        working-directory: apps/api
+
+      - name: Type check
+        run: npm run typecheck
+
+      # The test run creates its own slotbook_test database and applies every migration
+      # (see apps/api/tests/setup/global-setup.ts), so no manual database setup is needed.
+      - name: Tests
+        run: npm test
+
+  docker:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Builds the image from the Dockerfile without publishing it. This catches a broken
+      # Dockerfile, or code that compiles on your machine but not inside the image,
+      # before your hosting platform finds out.
+      - name: Build the image
+        run: docker build -t slotbook-api .

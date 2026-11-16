@@ -1,79 +1,163 @@
 # SlotBook
 
-Appointment booking for salons and clinics. Businesses set working hours and services;
-customers book open slots and get reminders. A full-stack learning project focused on
-real backend problems: auth, authorization, timezones, availability, and race conditions.
+Appointment booking for salons and clinics. Businesses set up services, staff and working
+hours; customers book open slots and get email reminders; owners see a calendar and stats.
+
+A full-stack learning project built around real backend problems: authentication and
+authorization, timezones, working out availability, race conditions, background jobs,
+and running it all in production.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  User["Customer or owner<br/>(web app)"] -->|"HTTPS and JWT"| API
+  subgraph Container["SlotBook API - one Docker container"]
+    API["Express API<br/>auth, bookings, availability, stats"]
+    Worker["BullMQ worker<br/>sends emails when due"]
+  end
+  API -->|"SQL through Prisma"| PG[("PostgreSQL<br/>data and the double-booking rule")]
+  API -->|"queue jobs, rate-limit counters"| Redis[("Redis")]
+  Redis -->|"jobs that are due"| Worker
+  Worker -->|"check booking, mark sent"| PG
+  Worker -->|"send"| Email["Email provider<br/>Resend"]
+```
+
+### What happens when a customer books a slot
+
+```mermaid
+sequenceDiagram
+  participant C as Customer
+  participant A as API
+  participant D as PostgreSQL
+  participant R as Redis
+  participant W as Worker
+  C->>A: POST /b/glow-salon/bookings
+  A->>R: rate limit check
+  A->>D: is this time really offered?
+  A->>D: INSERT the booking
+  Note over D: the no_double_booking constraint refuses overlaps
+  D-->>A: saved, or 409 slot taken
+  A->>R: queue confirmation and reminders
+  A-->>C: 201 Created
+  R-->>W: a job is due
+  W->>D: is the booking still active?
+  W-->>C: email
+```
+
+## The interesting problems, and where they are solved
+
+| Problem | How it is handled | Where |
+|---|---|---|
+| Two customers book the same slot at the same instant | A Postgres exclusion constraint, not an app-level check. A test fires 10 simultaneous requests and exactly 1 succeeds | `prisma/migrations/*_booking_rules`, `tests/bookings.test.ts` |
+| Which start times are open on a given day? | A pure function: working hours minus time off minus bookings, in the salon's timezone | `modules/availability/availability.ts` |
+| Daylight-saving days and timezones | Moments are stored in UTC. Working hours are local clock times, turned into real moments only for a given date | `toRange()` in `availability.ts` |
+| Stolen login tokens | Short-lived access token plus a rotating refresh token in an httpOnly cookie. A reused refresh token signs out every session | `modules/auth/auth.service.ts` |
+| One owner touching another owner's data | Every owner action starts by loading the business through its owner; strangers get a 404, not a 403 | `getOwnedBusiness()` in `modules/businesses/` |
+| Reminder emails for bookings that were cancelled or moved | Jobs sit in a Redis queue, but the database is the source of truth: the worker re-checks before sending | `modules/notifications/` |
+| Abuse and brute-forcing | A Redis fixed-window rate limiter with stricter limits on login and sign-up | `middleware/rateLimit.ts` |
+| Debugging production | One structured JSON log line per request with a request id; secrets are never logged | `lib/logger.ts`, `app.ts` |
 
 ## Stack
+
 | Layer | Tech |
 |---|---|
-| API | Node.js · Express 5 · TypeScript |
-| Database | PostgreSQL · Prisma 6 |
-| Validation | Zod |
-| Dates | Luxon |
-| Tests | Vitest · Supertest |
-| Later | Redis + BullMQ (reminders), Resend (email), React frontend |
+| API | Node.js 24, Express 5, TypeScript |
+| Database | PostgreSQL 17, Prisma 6 |
+| Queue and rate limiting | Redis 7, BullMQ |
+| Email | Resend (printed to the console when no key is set) |
+| Validation, dates | Zod, Luxon |
+| Logging | pino |
+| Tests | Vitest, Supertest (157 tests, against real Postgres and Redis) |
+| Packaging and CI | Docker, GitHub Actions |
 
 ## Getting started
 
-### 1. Get a PostgreSQL database (pick one)
-- **Docker Desktop** (recommended for learning): install it, then from this folder run
-  `docker compose up -d`. The default `DATABASE_URL` in `.env.example` already matches.
-- **Free hosted Postgres**: create a project on Neon or Supabase, copy the *direct*
-  connection string, and paste it into `apps/api/.env` as `DATABASE_URL`.
-- **Native install**: PostgreSQL for Windows from postgresql.org.
+You need Node 22 or newer and Docker Desktop.
 
-The database needs the `btree_gist` extension (built into Docker Postgres, Neon and Supabase).
-
-### 2. Configure and run
 ```bash
+docker compose up -d                 # PostgreSQL and Redis
 cd apps/api
-cp .env.example .env          # then set JWT_ACCESS_SECRET (and DATABASE_URL if not Docker)
-npm install                   # from the repo root is fine too
-npm run db:migrate            # creates all tables + the double-booking constraint
-npm run db:seed               # demo salon: owner@slotbook.test / password123
-npm run dev                   # http://localhost:4000/health
+cp .env.example .env                 # then set JWT_ACCESS_SECRET (see the comment in the file)
+npm install
+npm run db:migrate                   # creates the tables and the double-booking constraint
+npm run db:seed                      # demo salon: owner@slotbook.test / password123
+npm run dev                          # http://localhost:4000/b/glow-salon
 ```
 
-### 3. Try the API
-Use Thunder Client, Postman, or curl:
+Run the tests (they use their own `slotbook_test` database and Redis database 15, so your data is safe):
+
+```bash
+npm test                             # from apps/api, with Docker running
 ```
-POST /auth/register   { "email": "you@example.com", "password": "password123", "name": "You" }
-POST /auth/login      { "email": "owner@slotbook.test", "password": "password123" }
-GET  /auth/me         Authorization: Bearer <accessToken>
-POST /businesses      Authorization: Bearer <accessToken>
-                      { "name": "My Clinic", "slug": "my-clinic", "timezone": "Asia/Kolkata" }
-GET  /businesses/mine
-GET  /b/glow-salon    (public, no token)
+
+Run the whole thing from the Dockerfile, exactly as a host would:
+
+```bash
+JWT_ACCESS_SECRET=<a long random string> docker compose --profile full up --build
 ```
+
+Deploying it: see [docs/DEPLOY.md](docs/DEPLOY.md).
+
+## API
+
+Customers and owners sign in with `POST /auth/login` and send `Authorization: Bearer <accessToken>`.
+
+| Who | Method and path | What it does |
+|---|---|---|
+| Anyone | `GET /b/:slug` | The salon's public page: services and staff |
+| Anyone | `GET /b/:slug/availability?serviceId=&date=&staffId=` | Open start times for a day |
+| Customer | `POST /b/:slug/bookings` | Book a slot |
+| Customer | `GET /me/bookings` | My bookings |
+| Customer | `POST /me/bookings/:id/cancel` | Cancel |
+| Customer | `POST /me/bookings/:id/reschedule` | Move to another time |
+| Anyone | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout` | Accounts and sessions |
+| Anyone | `GET /auth/me` | The signed-in user |
+| Owner | `POST /businesses`, `GET /businesses/mine`, `PATCH /businesses/:id` | Manage salons |
+| Owner | `/businesses/:id/services` | Create, list, update, hide services |
+| Owner | `/businesses/:id/staff`, `.../staff/:staffId/services` | Staff and what each one offers |
+| Owner | `.../staff/:staffId/working-hours` | Weekly schedule, split shifts allowed |
+| Owner | `.../staff/:staffId/time-off` | Leave and holidays |
+| Owner | `GET /businesses/:id/bookings` | Bookings in a date range |
+| Owner | `PATCH /businesses/:id/bookings/:bookingId/status` | Mark completed, no-show or cancelled |
+| Owner | `GET /businesses/:id/calendar` | Bookings grouped by day |
+| Owner | `GET /businesses/:id/stats` | Counts, no-show rate, per-day totals, top services |
+
+Errors always look like `{ "error": { "code": "...", "message": "..." } }`. Every response carries an `X-Request-Id` header.
 
 ## Project structure
+
 ```
 apps/api/
   prisma/
     schema.prisma                 all tables
-    migrations/                   SQL history (incl. booking_rules: no double booking)
+    migrations/                   SQL history, including the double-booking rule
     seed.ts                       demo data
   src/
-    app.ts · server.ts
-    lib/                          env, db, errors
-    middleware/                   auth, validate, errorHandler
-    modules/
-      auth/                       register, login, refresh (rotating), logout, me
-      businesses/                 owner CRUD + public page (pattern to copy)
-      availability/               YOUR Week 4 task + ready-made tests
-  tests/                          API tests (supertest)
+    app.ts, server.ts
+    lib/                          env, db, redis, logger, mailer, errors
+    middleware/                   auth, validate, rateLimit, errorHandler
+    modules/                      one folder per feature: schema, service, routes
+      auth/  businesses/  services/  staff/  working-hours/  time-off/
+      availability/  bookings/  notifications/  stats/
+  tests/                          API tests and shared helpers
+Dockerfile                        production image
+docker-compose.yml                dev services, plus the full stack with --profile full
+.github/workflows/ci.yml          type check, tests and an image build on every push
+docs/DEPLOY.md                    putting it online
 ```
 
 ## Roadmap
-- [x] **Week 0:** scaffold, schema, double-booking constraint, auth, businesses module
-- [x] **Week 1:** get the DB running, explore with Prisma Studio, build **services CRUD** (copy the businesses pattern)
-- [x] **Week 2:** auth tests against a test DB; understand access vs refresh tokens
-- [x] **Week 3:** staff CRUD, assign services, working hours (`PUT /staff/:id/working-hours`), time off
-- [x] **Week 4:** implement `getAvailableSlots()`, remove `.skip` in its tests, add `GET /b/:slug/availability`
-- [x] **Week 5:** create / cancel / reschedule bookings; race test (10 parallel requests → 1 success, 9 × 409)
-- [x] **Week 6:** Redis + BullMQ reminders (24h / 1h), cancel jobs on booking cancel
-- [x] **Week 7:** owner calendar + stats endpoint, rate limiting, logging
-- [ ] **Week 8:** Docker deploy (Render/Railway), GitHub Actions CI, README architecture diagram
 
-Stretch: Google Calendar sync · Stripe deposits · waitlist · Claude-powered "book by chat".
+- [x] **Week 0:** scaffold, schema, double-booking constraint, auth, businesses module
+- [x] **Week 1:** services CRUD
+- [x] **Week 2:** auth tests against a test database
+- [x] **Week 3:** staff, working hours, time off
+- [x] **Week 4:** the availability function and endpoint
+- [x] **Week 5:** book, cancel, reschedule, and the 10-way race test
+- [x] **Week 6:** reminder emails with Redis and BullMQ
+- [x] **Week 7:** owner calendar and stats, rate limiting, structured logging
+- [x] **Week 8:** Dockerfile, GitHub Actions CI, deployment guide, architecture diagram
+
+Ideas for later: a React frontend, Google Calendar sync, Stripe deposits to reduce no-shows,
+a waitlist, and a Claude-powered "book by chat" assistant.
