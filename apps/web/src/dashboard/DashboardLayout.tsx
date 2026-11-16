@@ -7,6 +7,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { cn } from "../lib/cn";
 import { Button, Spinner } from "../ui/Button";
 import { Notice } from "../ui/Notice";
+import { WakingUp } from "../ui/WakingUp";
 
 export interface DashboardContext {
   business: OwnedBusiness;
@@ -38,7 +39,7 @@ export function DashboardGate({ children }: { children: (businesses: OwnedBusine
   const openAuth = useAuthDialog();
   const businesses = useMyBusinesses();
 
-  if (status === "loading") return <Centered><Spinner className="size-6" /></Centered>;
+  if (status === "loading") return <Centered><Spinner className="size-6" /><WakingUp /></Centered>;
 
   if (status === "signedOut") {
     return (
@@ -52,7 +53,7 @@ export function DashboardGate({ children }: { children: (businesses: OwnedBusine
     );
   }
 
-  if (businesses.isPending) return <Centered><Spinner className="size-6" /></Centered>;
+  if (businesses.isPending) return <Centered><Spinner className="size-6" /><WakingUp /></Centered>;
   if (businesses.isError) return <Notice tone="error">{describeError(businesses.error)}</Notice>;
 
   if (businesses.data.length === 0) {

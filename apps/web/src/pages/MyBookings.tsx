@@ -10,6 +10,7 @@ import { formatPrice } from "../lib/money";
 import { Button, Spinner } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 import { Notice } from "../ui/Notice";
+import { WakingUp } from "../ui/WakingUp";
 import { StatusBadge } from "../ui/StatusBadge";
 
 export function MyBookings() {
@@ -17,7 +18,7 @@ export function MyBookings() {
   const openAuth = useAuthDialog();
   const bookings = useMyBookings();
 
-  if (status === "loading") return <Centered><Spinner className="size-6" /></Centered>;
+  if (status === "loading") return <Centered><Spinner className="size-6" /><WakingUp /></Centered>;
 
   if (status === "signedOut") {
     return (
@@ -31,7 +32,7 @@ export function MyBookings() {
     );
   }
 
-  if (bookings.isPending) return <Centered><Spinner className="size-6" /></Centered>;
+  if (bookings.isPending) return <Centered><Spinner className="size-6" /><WakingUp /></Centered>;
   if (bookings.isError) return <Notice tone="error">{describeError(bookings.error)}</Notice>;
 
   const upcoming = bookings.data.filter((b) => (b.status === "confirmed" || b.status === "pending") && isInFuture(b.startsAt));

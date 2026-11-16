@@ -1,0 +1,62 @@
+# ─── Render Blueprint ────────────────────────────────────────────────────────
+# Creates everything the SlotBook API needs on Render, in one go:
+#   slotbook-db     PostgreSQL
+#   slotbook-redis  Key Value (Redis) for the reminder queue and rate limits
+#   slotbook-api    the API, built from the Dockerfile
+#
+# In the Render dashboard: New > Blueprint, then pick this repository.
+# Step-by-step instructions are in docs/DEPLOY.md.
+#
+# All three are in Singapore, the closest region to India, and must stay in one
+# region so the API can reach the database and Redis over Render's private network.
+#
+# Free plans (check https://render.com/docs/free for the current limits): the API
+# sleeps after 15 minutes without visitors and takes about a minute to wake; the
+# free database expires 30 days after it is created; free Redis keeps nothing on restart.
+# ──────────────────────────────────────────────────────────────────────────────
+
+databases:
+  - name: slotbook-db
+    plan: free
+    region: singapore
+    postgresMajorVersion: "17" # the same version as docker-compose.yml and CI
+    databaseName: slotbook
+    user: slotbook
+
+services:
+  - type: keyvalue
+    name: slotbook-redis
+    plan: free
+    region: singapore
+    # BullMQ keeps its jobs in Redis, so Redis must never throw keys away to free memory.
+    maxmemoryPolicy: noeviction
+    # No access from the internet at all. The API reaches it over Render's private network.
+    ipAllowList: []
+
+  - type: web
+    name: slotbook-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: slotbook-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: slotbook-redis
+          property: connectionString
+      # Render generates a random 256-bit value. It lives only in Render's settings, never in the repository.
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      # Render puts exactly one proxy in front of the API (see docs/DEPLOY.md before changing this).
+      - key: TRUST_PROXY
+        value: "1"
+      # The web app's address, like https://slotbook.vercel.app. Render asks for it when the Blueprint is created.
+      - key: CORS_ORIGIN
+        sync: false

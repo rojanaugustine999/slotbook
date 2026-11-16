@@ -8,6 +8,47 @@ settings you need, not where every button is. Check the host's own docs for the 
 Before you start, the code must be on GitHub (hosts deploy from a repository) and the CI
 run on `main` should be green.
 
+## The quick path: Render and Vercel
+
+This repository has a Render Blueprint (`render.yaml`) that creates the API, the database and
+Redis together. The web app goes on Vercel. Do the steps in this order, because each one needs
+an address from the one before.
+
+**1. Render: create the API, database and Redis.**
+In the Render dashboard choose **New > Blueprint**, connect GitHub if asked, and pick the
+`slotbook` repository. Render reads `render.yaml` and lists three resources: `slotbook-db`,
+`slotbook-redis` and `slotbook-api`. It asks for one value, `CORS_ORIGIN`: enter
+`https://slotbook.vercel.app` for now (step 3 corrects it). Apply. The first build takes a few
+minutes. When it is live, open the API's address (something like
+`https://slotbook-api.onrender.com`) with `/health` on the end: you should see `{"status":"ok"}`.
+
+**2. Vercel: deploy the web app.**
+In Vercel choose **Add New > Project** and import the `slotbook` repository. Set **Root
+Directory** to `apps/web` (Vercel recognises Vite and fills in the build settings). Under
+**Environment Variables** add `VITE_API_URL` set to the API address from step 1, with no slash at
+the end. Deploy, and note the address Vercel gives the site.
+
+**3. Render: tell the API where the web app lives.**
+In Render open `slotbook-api` > **Environment**, set `CORS_ORIGIN` to the exact Vercel address
+from step 2 (with `https://`, without a trailing slash), and save. The API restarts with it.
+Until this matches, the browser blocks the web app's requests.
+
+**4. Add the demo salon.**
+The live database starts empty. In Render open `slotbook-db` > **Connect** and copy the
+**External Database URL**. Then, on your own computer, from the project folder, run the seed
+against it. In PowerShell:
+
+```powershell
+$env:DATABASE_URL = "<paste the External Database URL>"; npm run db:seed -w @slotbook/api; Remove-Item Env:DATABASE_URL
+```
+
+That creates Glow Salon, its services and staff, and the demo owner `owner@slotbook.test` with
+the password `password123`. The password is public in this README, so anyone can open the demo
+owner dashboard. That is fine for a demo; never seed a real business this way.
+
+**5. Try it.** Open `https://<your-vercel-address>/glow-salon`. The first visit after a quiet
+spell takes up to a minute while the free API wakes up; the page says so.
+
 ## 1. Settings the API needs
 
 The container reads everything from environment variables. Never put these in a file in the

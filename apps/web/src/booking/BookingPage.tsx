@@ -8,6 +8,7 @@ import type { Booking, PublicBusiness } from "../api/types";
 import { formatWhen, toStartsAt, upcomingDays } from "../lib/dates";
 import { Notice } from "../ui/Notice";
 import { Spinner } from "../ui/Button";
+import { WakingUp } from "../ui/WakingUp";
 import { ANYONE, ServicePicker, StaffPicker } from "./Pickers";
 import { DayStrip, SlotPicker } from "./SlotPicker";
 import { ConfirmedView, MobileConfirmBar, Summary } from "./Summary";
@@ -18,8 +19,9 @@ export function BookingPage() {
 
   if (business.isPending) {
     return (
-      <div className="flex justify-center py-24 text-ink-3">
+      <div className="flex flex-col items-center py-24 text-ink-3">
         <Spinner className="size-6" />
+        <WakingUp />
       </div>
     );
   }
