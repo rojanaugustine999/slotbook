@@ -27,6 +27,12 @@ export async function createBusiness(app: Express, auth: { Authorization: string
   return res.body.business.id as string;
 }
 
+/** Adds a staff member to the given salon and returns their id. */
+export async function createStaff(app: Express, auth: { Authorization: string }, businessId: string, name: string) {
+  const res = await request(app).post(`/businesses/${businessId}/staff`).set(auth).send({ name });
+  return res.body.staff.id as string;
+}
+
 /** Creates a service in the given salon and returns its id. */
 export async function createService(app: Express, auth: { Authorization: string }, businessId: string, name: string) {
   const res = await request(app)

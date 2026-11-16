@@ -21,7 +21,7 @@ function present(row: StaffRow) {
 }
 
 // Checks the user owns the salon AND the staff member belongs to that salon.
-async function getOwnedStaff(businessId: string, staffId: string, userId: string) {
+export async function getOwnedStaff(businessId: string, staffId: string, userId: string) {
   await getOwnedBusiness(businessId, userId);
 
   const staff = await prisma.staff.findFirst({ where: { id: staffId, businessId } });
