@@ -109,8 +109,12 @@ Deploying it: see [docs/DEPLOY.md](docs/DEPLOY.md).
   simultaneous bookings side by side, a "now" line, filters, and a details dialog to cancel an
   upcoming booking or mark a past one completed or a no-show. On a phone it becomes a day-by-day list.
 
-The stats dashboard is next. To try the owner side locally, sign in as `owner@slotbook.test`
-(created by `npm run db:seed`).
+- the owner **stats dashboard** (`/dashboard/<id>/stats`): bookings, completed, no-show rate and
+  revenue for a period you choose (last 7 or 30 days, this or last month, or your own dates, up to
+  92 days), a bar chart of bookings per day, how bookings ended, and the top services. The chart is
+  plain elements with no chart library, and is readable by screen readers through a hidden table.
+
+To try the owner side locally, sign in as `owner@slotbook.test` (created by `npm run db:seed`).
 
 ```bash
 npm run dev -w @slotbook/web         # http://localhost:5173 (the API must be running on port 4000)
@@ -146,7 +150,7 @@ Customers and owners sign in with `POST /auth/login` and send `Authorization: Be
 | Owner | `GET /businesses/:id/bookings` | Bookings in a date range |
 | Owner | `PATCH /businesses/:id/bookings/:bookingId/status` | Mark completed, no-show or cancelled |
 | Owner | `GET /businesses/:id/calendar` | Bookings grouped by day |
-| Owner | `GET /businesses/:id/stats` | Counts, no-show rate, per-day totals, top services |
+| Owner | `GET /businesses/:id/stats` | Counts, no-show rate, revenue, per-day totals, top services |
 
 Errors always look like `{ "error": { "code": "...", "message": "..." } }`. Every response carries an `X-Request-Id` header.
 
@@ -184,8 +188,7 @@ docs/DEPLOY.md                    putting it online
 - [x] **Week 7:** owner calendar and stats, rate limiting, structured logging
 - [x] **Week 8:** Dockerfile, GitHub Actions CI, deployment guide, architecture diagram
 
-Frontend, in progress: the customer booking page, "My bookings" and the owner calendar are built; the
-stats dashboard is next.
+Frontend: the customer booking page, "My bookings", the owner calendar and the stats dashboard are built.
 
 Ideas for later: Google Calendar sync, Stripe deposits to reduce no-shows,
 a waitlist, and a Claude-powered "book by chat" assistant.

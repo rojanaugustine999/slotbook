@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthProvider";
 import { api } from "./client";
-import type { Availability, Booking, Calendar, CreateBookingInput, OwnedBusiness, OwnerBooking, OwnerStatusChange, PublicBusiness, StaffMember } from "./types";
+import type { Availability, Booking, Calendar, CreateBookingInput, OwnedBusiness, OwnerBooking, OwnerStatusChange, PublicBusiness, StaffMember, Stats } from "./types";
 
 // ─── Data hooks ──────────────────────────────────────────────────────────────
 // TanStack Query keeps a cache of everything we load. That gives us, with no extra
@@ -105,6 +105,18 @@ export function useChangeBookingStatus(businessId: string) {
       (await api<{ booking: OwnerBooking }>(`/businesses/${businessId}/bookings/${bookingId}/status`, { method: "PATCH", body: { status } })).booking,
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ["calendar", businessId] });
+      void queryClient.invalidateQueries({ queryKey: ["stats", businessId] }); // completing a booking changes revenue
     },
+  });
+}
+
+/** Numbers and chart data for a date range (at most 92 days). Pass enabled: false while the range is invalid. */
+export function useStats(businessId: string, from: string, to: string, enabled = true) {
+  return useQuery({
+    queryKey: ["stats", businessId, from, to],
+    enabled,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData, // while a new range loads, keep the old numbers on screen
+    queryFn: async () => (await api<{ stats: Stats }>(`/businesses/${businessId}/stats?from=${from}&to=${to}`)).stats,
   });
 }

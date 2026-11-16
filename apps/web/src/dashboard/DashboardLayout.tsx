@@ -1,9 +1,10 @@
-import { Navigate, Outlet, useNavigate, useOutletContext, useParams } from "react-router";
+import { Navigate, NavLink, Outlet, useNavigate, useOutletContext, useParams } from "react-router";
 import { describeError } from "../api/client";
 import { useMyBusinesses } from "../api/hooks";
 import type { OwnedBusiness } from "../api/types";
 import { useAuthDialog } from "../auth/AuthDialog";
 import { useAuth } from "../auth/AuthProvider";
+import { cn } from "../lib/cn";
 import { Button, Spinner } from "../ui/Button";
 import { Notice } from "../ui/Notice";
 
@@ -14,6 +15,16 @@ export interface DashboardContext {
 /** Pages inside the dashboard read the business they belong to with this. */
 export function useDashboardBusiness(): OwnedBusiness {
   return useOutletContext<DashboardContext>().business;
+}
+
+// A tab: the current one gets an accent underline. The "to" is relative, so "stats" means
+// /dashboard/<this business>/stats.
+function TabLink({ to, children }: { to: string; children: React.ReactNode }) {
+  return (
+    <NavLink to={to} className={({ isActive }) => cn("-mb-px border-b-2 px-3 py-2 text-[15px]", isActive ? "border-accent font-medium text-ink" : "border-transparent text-ink-2 hover:text-ink")}>
+      {children}
+    </NavLink>
+  );
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
@@ -123,6 +134,10 @@ export function DashboardLayout() {
                 )}
               </div>
             </div>
+            <nav className="mb-6 flex gap-1 border-b border-line" aria-label="Dashboard sections">
+              <TabLink to="calendar">Calendar</TabLink>
+              <TabLink to="stats">Stats</TabLink>
+            </nav>
             <Outlet context={{ business } satisfies DashboardContext} />
           </div>
         );

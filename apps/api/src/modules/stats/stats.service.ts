@@ -89,6 +89,18 @@ export async function getBusinessStats(businessId: string, userId: string, query
     ORDER BY bookings DESC, s.name
     LIMIT 5`;
 
+  // ── 4. Total revenue ───────────────────────────────────────────────────────
+  // The top-services list above stops at five rows, so adding those up would miss the
+  // rest. This sums every completed booking's price, whatever the service.
+  const revenueRows = await prisma.$queryRaw<{ revenue: bigint }[]>`
+    SELECT COALESCE(SUM(s.price_cents), 0) AS revenue
+    FROM bookings b
+    JOIN services s ON s.id = b.service_id
+    WHERE b.business_id = ${businessId}::uuid
+      AND b.starts_at >= ${rangeStart}
+      AND b.starts_at < ${rangeEnd}
+      AND b.status = 'completed'`;
+
   return {
     from: query.from,
     to: query.to,
@@ -96,6 +108,7 @@ export async function getBusinessStats(businessId: string, userId: string, query
     total,
     byStatus,
     noShowRate, // 0.25 means 25%; null when no appointment has finished yet
+    revenueCents: Number(revenueRows[0]?.revenue ?? 0), // from completed bookings only
     bookingsPerDay,
     topServices: topRows.map((r) => ({
       serviceId: r.id,

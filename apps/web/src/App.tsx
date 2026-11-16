@@ -2,6 +2,7 @@ import { Route, Routes } from "react-router";
 import { BookingPage } from "./booking/BookingPage";
 import { CalendarPage } from "./dashboard/CalendarPage";
 import { DashboardHome, DashboardLayout } from "./dashboard/DashboardLayout";
+import { StatsPage } from "./dashboard/StatsPage";
 import { Layout } from "./Layout";
 import { Home, NotFound } from "./pages/Home";
 import { MyBookings } from "./pages/MyBookings";
@@ -16,6 +17,7 @@ export function App() {
         <Route path="dashboard" element={<DashboardHome />} />
         <Route path="dashboard/:businessId" element={<DashboardLayout />}>
           <Route path="calendar" element={<CalendarPage />} />
+          <Route path="stats" element={<StatsPage />} />
         </Route>
         <Route path=":slug" element={<BookingPage />} />
         <Route path="*" element={<NotFound />} />

@@ -91,6 +91,19 @@ export interface Calendar {
 
 export type OwnerStatusChange = "cancelled" | "completed" | "no_show";
 
+// GET /businesses/:id/stats
+export interface Stats {
+  from: string;
+  to: string;
+  timezone: string;
+  total: number; // every booking in the range, whatever its status
+  byStatus: Record<BookingStatus, number>;
+  noShowRate: number | null; // 0.25 means 25%. null until an appointment has finished
+  revenueCents: number; // whole paise, from completed bookings only
+  bookingsPerDay: { date: string; count: number }[]; // every day in the range, cancelled bookings left out
+  topServices: { serviceId: string; name: string; bookings: number; revenueCents: number }[];
+}
+
 export interface CreateBookingInput {
   serviceId: string;
   staffId?: string; // leave out for "anyone"

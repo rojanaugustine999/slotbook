@@ -98,6 +98,32 @@ describe("GET /businesses/:id/stats", () => {
     ]);
   });
 
+  it("adds up revenue from every completed booking, not just the top five services", async () => {
+    const { salon, haircut, add } = await setup();
+    // Six more services (30000 paise each), each with one completed booking: seven services in all.
+    const extras: string[] = [];
+    for (let i = 1; i <= 6; i++) extras.push(await createService(app, salon.auth, salon.businessId, `Extra ${i}`));
+    await add(haircut, "2026-03-02T10:00:00", "completed"); // 30000
+    for (const [i, serviceId] of extras.entries()) await add(serviceId, `2026-03-0${3 + (i % 4)}T1${i}:00:00`, "completed"); // 6 x 30000
+    await add(haircut, "2026-03-06T10:00:00", "confirmed"); // upcoming: earns nothing yet
+    await add(haircut, "2026-03-06T12:00:00", "no_show"); // earns nothing
+    await add(haircut, "2026-03-06T14:00:00", "cancelled"); // earns nothing
+
+    const res = await request(app).get(statsUrl(salon.businessId)).set(salon.auth).query({ from: "2026-03-01", to: "2026-03-07" });
+
+    expect(res.body.stats.topServices).toHaveLength(5); // the list is capped...
+    expect(res.body.stats.revenueCents).toBe(7 * 30000); // ...but the total is not
+  });
+
+  it("reports zero revenue when nothing has been completed", async () => {
+    const { salon, haircut, add } = await setup();
+    await add(haircut, "2026-03-06T10:00:00", "confirmed");
+
+    const res = await request(app).get(statsUrl(salon.businessId)).set(salon.auth).query({ from: "2026-03-01", to: "2026-03-07" });
+
+    expect(res.body.stats.revenueCents).toBe(0);
+  });
+
   it("only counts bookings inside the range and inside this salon", async () => {
     const { salon, haircut, add } = await setup();
     await add(haircut, "2026-03-02T10:00:00", "completed"); // inside
