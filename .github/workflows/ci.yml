@@ -73,6 +73,15 @@ jobs:
       - name: Tests
         run: npm test
 
+      # The web app: type check, unit tests, and a production build (which also catches
+      # anything that only fails when the app is bundled for real).
+      - name: Web app, type check
+        run: npm run typecheck -w @slotbook/web
+      - name: Web app, tests
+        run: npm test -w @slotbook/web
+      - name: Web app, production build
+        run: npm run build -w @slotbook/web
+
   docker:
     name: Docker image builds
     runs-on: ubuntu-latest

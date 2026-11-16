@@ -99,6 +99,24 @@ JWT_ACCESS_SECRET=<a long random string> docker compose --profile full up --buil
 
 Deploying it: see [docs/DEPLOY.md](docs/DEPLOY.md).
 
+## Web app
+
+`apps/web` is a React, Vite and Tailwind app that talks to the API. So far it has the customer
+booking page (`/glow-salon`: pick a service, person, day and time, then confirm) and "My bookings"
+(`/me`, with cancel). The owner calendar and stats dashboard come next.
+
+```bash
+npm run dev -w @slotbook/web         # http://localhost:5173 (the API must be running on port 4000)
+```
+
+- **Look and feel** lives in one place: the colour, corner and font tokens at the top of
+  `apps/web/src/index.css`. Change them there and the whole app follows, including dark mode.
+- **Phone first:** the booking page is designed for a small screen, with a confirm bar that stays
+  in reach, and widens into two columns on a desktop.
+- **Sign-in** keeps the short-lived access token only in memory and the refresh token in an
+  httpOnly cookie, so a page script can never read either one long-term.
+- To point it at a deployed API, set `VITE_API_URL` (see `apps/web/.env.example`).
+
 ## API
 
 Customers and owners sign in with `POST /auth/login` and send `Authorization: Bearer <accessToken>`.
@@ -159,5 +177,8 @@ docs/DEPLOY.md                    putting it online
 - [x] **Week 7:** owner calendar and stats, rate limiting, structured logging
 - [x] **Week 8:** Dockerfile, GitHub Actions CI, deployment guide, architecture diagram
 
-Ideas for later: a React frontend, Google Calendar sync, Stripe deposits to reduce no-shows,
+Frontend, in progress: customer booking page and "My bookings" are built; the owner calendar and stats
+dashboard are next.
+
+Ideas for later: Google Calendar sync, Stripe deposits to reduce no-shows,
 a waitlist, and a Claude-powered "book by chat" assistant.
