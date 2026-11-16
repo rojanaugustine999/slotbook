@@ -70,7 +70,7 @@ apps/api/
 - [x] **Week 1:** get the DB running, explore with Prisma Studio, build **services CRUD** (copy the businesses pattern)
 - [x] **Week 2:** auth tests against a test DB; understand access vs refresh tokens
 - [x] **Week 3:** staff CRUD, assign services, working hours (`PUT /staff/:id/working-hours`), time off
-- [ ] **Week 4:** implement `getAvailableSlots()`, remove `.skip` in its tests, add `GET /b/:slug/availability`
+- [x] **Week 4:** implement `getAvailableSlots()`, remove `.skip` in its tests, add `GET /b/:slug/availability`
 - [ ] **Week 5:** create / cancel / reschedule bookings; race test (10 parallel requests → 1 success, 9 × 409)
 - [ ] **Week 6:** Redis + BullMQ reminders (24h / 1h), cancel jobs on booking cancel
 - [ ] **Week 7:** owner calendar + stats endpoint, rate limiting, logging

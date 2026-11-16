@@ -40,5 +40,4 @@ publicRouter.get("/:slug", async (req, res) => {
   res.json({ business: await businesses.getPublicBusiness(req.params.slug) });
 });
 
-// TODO Week 4: GET /b/:slug/availability?serviceId=&staffId=&date=
 // TODO Week 5: POST /b/:slug/bookings

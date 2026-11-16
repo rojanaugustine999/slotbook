@@ -4,6 +4,7 @@ import express from "express";
 import helmet from "helmet";
 import { env } from "./lib/env.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import { availabilityRouter } from "./modules/availability/availability.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { businessesRouter, publicRouter } from "./modules/businesses/businesses.routes.js";
 import { servicesRouter } from "./modules/services/services.routes.js";
@@ -31,6 +32,7 @@ export function createApp() {
   app.use("/businesses", workingHoursRouter); // adds /businesses/:id/staff/:staffId/working-hours
   app.use("/businesses", timeOffRouter); // adds /businesses/:id/staff/:staffId/time-off
   app.use("/b", publicRouter);
+  app.use("/b", availabilityRouter); // adds /b/:slug/availability
 
   // Order matters: these two must come after all routes.
   app.use(notFoundHandler);
