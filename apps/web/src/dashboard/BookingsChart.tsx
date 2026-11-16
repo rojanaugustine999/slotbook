@@ -72,23 +72,27 @@ export function BookingsChart({ data, today }: Props) {
         </div>
       </div>
 
-      <table className="sr-only">
-        <caption>Bookings per day</caption>
-        <thead>
-          <tr>
-            <th scope="col">Date</th>
-            <th scope="col">Bookings</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((day) => (
-            <tr key={day.date}>
-              <td>{long(day.date)}</td>
-              <td>{day.count}</td>
+      {/* The hiding must be on a wrapper <div>, not on the <table> itself: browsers don't clip a
+          table's rows, so a hidden table would still take up its full height and stretch the page. */}
+      <div className="sr-only">
+        <table>
+          <caption>Bookings per day</caption>
+          <thead>
+            <tr>
+              <th scope="col">Date</th>
+              <th scope="col">Bookings</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {data.map((day) => (
+              <tr key={day.date}>
+                <td>{long(day.date)}</td>
+                <td>{day.count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }

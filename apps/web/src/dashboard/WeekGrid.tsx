@@ -78,6 +78,7 @@ export function WeekGrid({ days, timezone, today, now, staffIndex, onSelect }: P
                     type="button"
                     onClick={() => onSelect(booking)}
                     aria-label={`${booking.customer.name}, ${booking.service.name} with ${booking.staff.name}, ${formatTimeOf(booking.startsAt, timezone)}, ${booking.status.replace("_", " ")}`}
+                    title={`${booking.customer.name}: ${booking.service.name} with ${booking.staff.name}, ${formatTimeOf(booking.startsAt, timezone)}`}
                     className={cn(
                       "absolute overflow-hidden rounded-md border-l-[3px] px-1.5 py-1 text-left text-xs leading-snug transition-[filter] hover:brightness-95",
                       blockClasses(booking, slot),
@@ -90,11 +91,13 @@ export function WeekGrid({ days, timezone, today, now, staffIndex, onSelect }: P
                           <path d="M5 12.5l4.5 4.5L19 7.5" />
                         </svg>
                       )}
-                      <span className="truncate">{booking.customer.name}</span>
+                      {/* Two bookings sharing a column leave each only about 65px, so show less: a first name and the time. */}
+                      <span className="truncate">{lanes > 1 ? booking.customer.name.split(" ")[0] : booking.customer.name}</span>
                     </span>
                     <span className={cn("block truncate", cancelled ? "text-ink-3" : "text-ink-2")}>
-                      {formatTimeOf(booking.startsAt, timezone).replace(" ", "")} · {booking.service.name}
-                      {booking.status === "no_show" && " · no-show"}
+                      {formatTimeOf(booking.startsAt, timezone).replace(" ", "")}
+                      {lanes === 1 && ` · ${booking.service.name}`}
+                      {lanes === 1 && booking.status === "no_show" && " · no-show"}
                     </span>
                   </button>
                 );

@@ -7,6 +7,35 @@ A full-stack learning project built around real backend problems: authentication
 authorization, timezones, working out availability, race conditions, background jobs,
 and running it all in production.
 
+## Screenshots
+
+Taken from the running app, with fictional sample data. Everything follows the visitor's light or dark setting.
+
+**Customer booking page.** Built phone-first: choose a service, a person (or "anyone"), a day and a time. On a phone a confirm bar stays pinned to the bottom; on a desktop the summary sits beside the steps.
+
+<p align="center">
+  <img src="docs/screenshots/booking-desktop.png" alt="The booking page on a desktop: four services, a choice of staff, a day strip, open times grouped by morning, afternoon and evening, and a summary card with a Confirm booking button" width="480">
+  <img src="docs/screenshots/booking-mobile.png" alt="The booking page on a phone: day strip, grouped times and a pinned Confirm bar" width="215">
+  <img src="docs/screenshots/booking-mobile-dark.png" alt="The same phone page in dark mode" width="215">
+</p>
+
+**Owner weekly calendar.** One colour per staff member, simultaneous bookings side by side, a line for the current time, and filters. Completed bookings carry a check mark. On a phone it becomes a day-by-day list.
+
+<img src="docs/screenshots/calendar.png" alt="The owner's weekly calendar: a column per day, bookings coloured by staff member, overlapping bookings side by side, and today highlighted" width="830">
+
+**Owner stats.** Bookings, completed, no-show rate and revenue for a period of your choice, a bar chart per day, how bookings ended, and the top services.
+
+<img src="docs/screenshots/stats.png" alt="The stats dashboard: four number cards, a bookings-per-day bar chart, an outcomes breakdown and a top-services list" width="830">
+
+<details>
+<summary>Dark mode</summary>
+
+<img src="docs/screenshots/calendar-dark.png" alt="The weekly calendar in dark mode" width="830">
+
+<img src="docs/screenshots/stats-dark.png" alt="The stats dashboard in dark mode" width="830">
+
+</details>
+
 ## Architecture
 
 ```mermaid
