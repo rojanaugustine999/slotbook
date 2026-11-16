@@ -1,0 +1,23 @@
+# Local development services.
+# Start:  docker compose up -d      Stop: docker compose down
+# Data lives in named volumes, so it survives restarts. `docker compose down -v` wipes it.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: slotbook
+      POSTGRES_PASSWORD: slotbook
+      POSTGRES_DB: slotbook
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # Not needed until Week 6 (reminder jobs with BullMQ).
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+volumes:
+  pgdata:
