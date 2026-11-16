@@ -80,6 +80,27 @@ export function useMyBusinesses() {
   });
 }
 
+export interface CreateBusinessInput {
+  name: string;
+  slug: string;
+  timezone: string;
+  address?: string;
+}
+
+/** Creates a salon owned by the signed-in person. */
+export function useCreateBusiness() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateBusinessInput) => (await api<{ business: OwnedBusiness }>("/businesses", { method: "POST", body: input })).business,
+    onSuccess: (business) => {
+      // Put the new salon in the cache straight away, so the dashboard can open it
+      // without waiting for /businesses/mine to load again. Then refresh to be sure.
+      queryClient.setQueryData<OwnedBusiness[]>(["my-businesses"], (old) => [business, ...(old ?? [])]);
+      void queryClient.invalidateQueries({ queryKey: ["my-businesses"] });
+    },
+  });
+}
+
 export function useStaff(businessId: string) {
   return useQuery({
     queryKey: ["staff", businessId],

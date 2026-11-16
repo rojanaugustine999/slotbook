@@ -1,5 +1,6 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/db.js";
-import { notFound } from "../../lib/errors.js";
+import { conflict, notFound } from "../../lib/errors.js";
 import type { CreateBusinessInput, UpdateBusinessInput } from "./businesses.schema.js";
 
 // ─── Authorization pattern ───────────────────────────────────────────────────
@@ -14,9 +15,27 @@ export async function getOwnedBusiness(businessId: string, userId: string) {
   return business;
 }
 
-export function createBusiness(ownerId: string, input: CreateBusinessInput) {
-  // Duplicate slug → Prisma P2002 → errorHandler responds 409.
-  return prisma.business.create({ data: { ...input, ownerId } });
+// ─── "That address is taken" ─────────────────────────────────────────────────
+// We don't look the slug up first and then create: two owners could both see "free"
+// and both try to create it. The unique index on slug makes the database decide, and
+// the loser gets error P2002. We turn that into SLUG_TAKEN so the form can say so next
+// to the address field (the general handler would only say "already exists").
+// ──────────────────────────────────────────────────────────────────────────────
+function isSlugTaken(err: unknown): boolean {
+  if (!(err instanceof Prisma.PrismaClientKnownRequestError) || err.code !== "P2002") return false;
+  const target = err.meta?.target; // the column(s) that clashed
+  return Array.isArray(target) ? target.includes("slug") : String(target).includes("slug");
+}
+
+const slugTaken = () => conflict("That address is already taken. Try adding your area, like glow-salon-kochi.", "SLUG_TAKEN");
+
+export async function createBusiness(ownerId: string, input: CreateBusinessInput) {
+  try {
+    return await prisma.business.create({ data: { ...input, ownerId } });
+  } catch (err) {
+    if (isSlugTaken(err)) throw slugTaken();
+    throw err;
+  }
 }
 
 export function listMyBusinesses(ownerId: string) {
@@ -25,7 +44,12 @@ export function listMyBusinesses(ownerId: string) {
 
 export async function updateBusiness(businessId: string, userId: string, input: UpdateBusinessInput) {
   await getOwnedBusiness(businessId, userId);
-  return prisma.business.update({ where: { id: businessId }, data: input });
+  try {
+    return await prisma.business.update({ where: { id: businessId }, data: input });
+  } catch (err) {
+    if (isSlugTaken(err)) throw slugTaken();
+    throw err;
+  }
 }
 
 // Public page: only safe fields and only active services/staff.
