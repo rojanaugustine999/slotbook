@@ -258,6 +258,33 @@ export async function listBusinessBookings(businessId: string, userId: string, q
   });
 }
 
+// The same bookings as the list above, grouped by LOCAL day, for drawing a calendar.
+// Every day in the range appears, even with no bookings, so the frontend can draw
+// an empty cell without working out which dates are missing.
+export async function getCalendar(businessId: string, userId: string, query: OwnerBookingsQuery) {
+  const business = await getOwnedBusiness(businessId, userId);
+  const bookings = await listBusinessBookings(businessId, userId, query);
+
+  const days: { date: string; bookings: typeof bookings }[] = [];
+  const byDate = new Map<string, typeof bookings>();
+
+  const last = DateTime.fromISO(query.to, { zone: business.timezone });
+  for (let d = DateTime.fromISO(query.from, { zone: business.timezone }); d <= last; d = d.plus({ days: 1 })) {
+    const date = d.toFormat("yyyy-MM-dd");
+    const list: typeof bookings = [];
+    byDate.set(date, list);
+    days.push({ date, bookings: list });
+  }
+
+  // A booking belongs to the day it starts on IN THE SALON, not the UTC day.
+  for (const booking of bookings) {
+    const date = DateTime.fromJSDate(booking.startsAt, { zone: business.timezone }).toFormat("yyyy-MM-dd");
+    byDate.get(date)?.push(booking);
+  }
+
+  return { timezone: business.timezone, days };
+}
+
 // Owners mark what happened: completed, no_show, or cancel on the customer's behalf.
 export async function changeBookingStatus(businessId: string, bookingId: string, userId: string, to: BookingStatus) {
   await getOwnedBusiness(businessId, userId);

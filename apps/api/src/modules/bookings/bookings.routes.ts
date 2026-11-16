@@ -53,6 +53,14 @@ ownerBookingsRouter.get("/:id/bookings", async (req, res) => {
   res.json({ bookings: await bookings.listBusinessBookings(businessId, currentUserId(req), query) });
 });
 
+// GET /businesses/:id/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD&staffId=&status=
+// Same filters as the list, but grouped by day (every day included) for a calendar grid.
+ownerBookingsRouter.get("/:id/calendar", async (req, res) => {
+  const businessId = idParam.parse(req.params.id);
+  const query = ownerBookingsQuerySchema.parse(req.query);
+  res.json({ calendar: await bookings.getCalendar(businessId, currentUserId(req), query) });
+});
+
 // PATCH /businesses/:id/bookings/:bookingId/status  { status }
 ownerBookingsRouter.patch("/:id/bookings/:bookingId/status", validateBody(changeStatusSchema), async (req, res) => {
   const businessId = idParam.parse(req.params.id);

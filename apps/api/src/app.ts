@@ -9,6 +9,7 @@ import { authRouter } from "./modules/auth/auth.routes.js";
 import { bookingsRouter, meRouter, ownerBookingsRouter } from "./modules/bookings/bookings.routes.js";
 import { businessesRouter, publicRouter } from "./modules/businesses/businesses.routes.js";
 import { servicesRouter } from "./modules/services/services.routes.js";
+import { statsRouter } from "./modules/stats/stats.routes.js";
 import { staffRouter } from "./modules/staff/staff.routes.js";
 import { timeOffRouter } from "./modules/time-off/time-off.routes.js";
 import { workingHoursRouter } from "./modules/working-hours/working-hours.routes.js";
@@ -32,6 +33,7 @@ export function createApp() {
   app.use("/businesses", staffRouter); // adds /businesses/:id/staff
   app.use("/businesses", workingHoursRouter); // adds /businesses/:id/staff/:staffId/working-hours
   app.use("/businesses", ownerBookingsRouter); // adds /businesses/:id/bookings
+  app.use("/businesses", statsRouter); // adds /businesses/:id/stats
   app.use("/businesses", timeOffRouter); // adds /businesses/:id/staff/:staffId/time-off
   app.use("/b", publicRouter);
   app.use("/b", availabilityRouter); // adds /b/:slug/availability
