@@ -7,6 +7,7 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { businessesRouter, publicRouter } from "./modules/businesses/businesses.routes.js";
 import { servicesRouter } from "./modules/services/services.routes.js";
+import { staffRouter } from "./modules/staff/staff.routes.js";
 
 // Builds the app without starting it, so tests can call it with supertest.
 export function createApp() {
@@ -24,6 +25,7 @@ export function createApp() {
   app.use("/auth", authRouter);
   app.use("/businesses", businessesRouter);
   app.use("/businesses", servicesRouter); // adds /businesses/:id/services
+  app.use("/businesses", staffRouter); // adds /businesses/:id/staff
   app.use("/b", publicRouter);
 
   // Order matters: these two must come after all routes.
