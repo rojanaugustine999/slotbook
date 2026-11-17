@@ -1,4 +1,4 @@
-import { Navigate, NavLink, Outlet, useNavigate, useOutletContext, useParams } from "react-router";
+import { Link, Navigate, NavLink, Outlet, useNavigate, useOutletContext, useParams } from "react-router";
 import { describeError } from "../api/client";
 import { useMyBusinesses } from "../api/hooks";
 import type { OwnedBusiness } from "../api/types";
@@ -76,7 +76,10 @@ export function DashboardHome() {
           <Navigate to={`/dashboard/${businesses[0]!.id}/calendar`} replace />
         ) : (
           <div className="mx-auto max-w-md">
-            <h1 className="text-2xl font-medium">Your businesses</h1>
+            <div className="flex items-baseline justify-between gap-3">
+              <h1 className="text-2xl font-medium">Your businesses</h1>
+              <NewSalonLink />
+            </div>
             <ul className="mt-5 space-y-2">
               {businesses.map((business) => (
                 <li key={business.id}>
@@ -91,6 +94,23 @@ export function DashboardHome() {
         )
       }
     </DashboardGate>
+  );
+}
+
+/**
+ * /dashboard/new: set up a salon. The home page's "Set up your booking page" comes here,
+ * so it works for everyone: signed out (sign in or create an account first), signed in
+ * with no salon, and signed in with salons already (adds another one).
+ */
+export function DashboardNew() {
+  return <DashboardGate>{(businesses) => <CreateBusiness hasOthers={businesses.length > 0} />}</DashboardGate>;
+}
+
+function NewSalonLink() {
+  return (
+    <Link to="/dashboard/new" className="text-sm font-medium text-accent hover:underline">
+      + New salon
+    </Link>
   );
 }
 
@@ -136,6 +156,7 @@ export function DashboardLayout() {
                   <BookingLink slug={business.slug} />
                 </div>
               </div>
+              <NewSalonLink />
             </div>
             <SetupChecklist key={business.id} business={business} />
             <nav className="mb-6 flex gap-1 border-b border-line" aria-label="Dashboard sections">

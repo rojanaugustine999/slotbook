@@ -26,7 +26,7 @@ export function Home() {
 
       <p className="mt-8 text-[15px] text-ink-2">
         Run a salon or clinic?{" "}
-        <Link to="/dashboard" className="font-medium text-accent underline underline-offset-2">
+        <Link to="/dashboard/new" className="font-medium text-accent underline underline-offset-2">
           Set up your booking page
         </Link>
       </p>

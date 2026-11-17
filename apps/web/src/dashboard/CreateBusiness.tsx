@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { ApiError, describeError } from "../api/client";
 import { useCreateBusiness } from "../api/hooks";
 import { slugify, slugProblem } from "../lib/slug";
@@ -51,8 +51,11 @@ function fieldErrorsFrom(error: unknown): Errors | null {
   return null;
 }
 
-/** "Set up your salon": shown in the dashboard to a signed-in person who doesn't own one yet. */
-export function CreateBusiness() {
+/**
+ * "Set up your salon". Shown to a signed-in person with no salon yet, and at /dashboard/new
+ * to add another one (hasOthers: then there's a way back to the existing salons).
+ */
+export function CreateBusiness({ hasOthers = false }: { hasOthers?: boolean }) {
   const navigate = useNavigate();
   const createBusiness = useCreateBusiness();
 
@@ -113,7 +116,12 @@ export function CreateBusiness() {
 
   return (
     <div className="mx-auto max-w-lg py-6 sm:py-10">
-      <h1 className="text-2xl font-medium">Set up your salon</h1>
+      {hasOthers && (
+        <Link to="/dashboard" className="mb-4 inline-block text-sm font-medium text-accent hover:underline">
+          ← Back to your dashboard
+        </Link>
+      )}
+      <h1 className="text-2xl font-medium">{hasOthers ? "Set up another salon" : "Set up your salon"}</h1>
       <p className="mt-2 text-ink-2">Start with the basics. You'll add services, staff and opening hours next.</p>
 
       <form onSubmit={submit} noValidate className="mt-8 space-y-5 rounded-card border border-line bg-surface p-5 sm:p-6">
