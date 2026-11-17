@@ -16,6 +16,7 @@ and running it all in production.
 
 - **Book an appointment:** [slotbook-gamma.vercel.app/glow-salon](https://slotbook-gamma.vercel.app/glow-salon)
 - **Owner dashboard:** [slotbook-gamma.vercel.app](https://slotbook-gamma.vercel.app). Sign in as `owner@slotbook.test` with the password `password123` (a shared demo account, so others may change its data)
+- **Set up your own salon:** [slotbook-gamma.vercel.app/dashboard/new](https://slotbook-gamma.vercel.app/dashboard/new). Create an account, name your salon, then follow the checklist: services, staff and their hours
 
 The web app is on Vercel, the API and Redis on Render, and PostgreSQL on Neon, all on free plans. The API
 sleeps when nobody has used it for a while, so the first visit can take up to a minute while it
@@ -32,6 +33,19 @@ Taken from the running app, with fictional sample data. Everything follows the v
   <img src="docs/screenshots/booking-desktop.png" alt="The booking page on a desktop: four services, a choice of staff, a day strip, open times grouped by morning, afternoon and evening, and a summary card with a Confirm booking button" width="480">
   <img src="docs/screenshots/booking-mobile.png" alt="The booking page on a phone: day strip, grouped times and a pinned Confirm bar" width="215">
   <img src="docs/screenshots/booking-mobile-dark.png" alt="The same phone page in dark mode" width="215">
+</p>
+
+**Owner setup.** A new owner names the salon and gets a booking address suggested from the name (addresses the app needs for itself, like `dashboard`, are refused, and a taken one says so beside the field). Until the salon can take a booking, a checklist says what's missing and links straight to it.
+
+<p align="center">
+  <img src="docs/screenshots/setup.png" alt="Set up your salon: salon name, a booking page address filled in from the name with a preview of the link, the timezone and an optional street address" width="410">
+  <img src="docs/screenshots/services-checklist.png" alt="A new salon's Services tab: three services with length, price and cleanup time, under a Finish setting up checklist whose next step is to add a person" width="410">
+</p>
+
+**Staff, hours and time off.** Each person has the services they offer, a weekly schedule with breaks (several blocks a day, "copy Monday to Tue–Fri"), and time off entered on the salon's own clock.
+
+<p align="center">
+  <img src="docs/screenshots/staff.png" alt="A staff member's page: the services they offer as checkboxes, and weekly hours with a lunch break from Monday to Saturday" width="520">
 </p>
 
 **Owner weekly calendar.** One colour per staff member, simultaneous bookings side by side, a line for the current time, and filters. Completed bookings carry a check mark. On a phone it becomes a day-by-day list.
@@ -99,6 +113,9 @@ sequenceDiagram
 | Stolen login tokens | Short-lived access token plus a rotating refresh token in an httpOnly cookie. A reused refresh token signs out every session | `modules/auth/auth.service.ts` |
 | One owner touching another owner's data | Every owner action starts by loading the business through its owner; strangers get a 404, not a 403 | `getOwnedBusiness()` in `modules/businesses/` |
 | Reminder emails for bookings that were cancelled or moved | Jobs sit in a Redis queue, but the database is the source of truth: the worker re-checks before sending | `modules/notifications/` |
+| Changing a price would rewrite last month's revenue | Each booking keeps a copy of the price it was made at. The migration that added it filled in existing bookings before making the column required | `migrations/*_booking_price`, `tests/booking-price.test.ts` |
+| Two new owners claim the same booking address at once | The unique index decides, not an "is it free?" lookup; the loser gets `SLUG_TAKEN`. Addresses the web app uses itself (`dashboard`, `assets`) are refused | `modules/businesses/`, `tests/businesses.test.ts` |
+| A salon whose booking page shows no times, and nobody knows why | The dashboard checks the three things that must line up (a service, someone who offers it, their hours) and shows the next missing step | `apps/web/src/dashboard/setup.ts` |
 | Abuse and brute-forcing | A Redis fixed-window rate limiter with stricter limits on login and sign-up | `middleware/rateLimit.ts` |
 | Debugging production | One structured JSON log line per request with a request id; secrets are never logged | `lib/logger.ts`, `app.ts` |
 
@@ -112,7 +129,8 @@ sequenceDiagram
 | Email | Resend (printed to the console when no key is set) |
 | Validation, dates | Zod, Luxon |
 | Logging | pino |
-| Tests | Vitest, Supertest (157 tests, against real Postgres and Redis) |
+| Web app | React 19, Vite, Tailwind 4, TanStack Query |
+| Tests | Vitest, Supertest (177 API tests against real Postgres and Redis, plus 81 web tests) |
 | Packaging and CI | Docker, GitHub Actions |
 
 ## Getting started
@@ -157,6 +175,10 @@ Deploying it: see [docs/DEPLOY.md](docs/DEPLOY.md).
   revenue for a period you choose (last 7 or 30 days, this or last month, or your own dates, up to
   92 days), a bar chart of bookings per day, how bookings ended, and the top services. The chart is
   plain elements with no chart library, and is readable by screen readers through a hidden table.
+- owner **setup** (`/dashboard/new`): create a salon, then the **Services** tab (add, edit, hide;
+  prices typed in rupees and stored as whole paise) and the **Staff** tab (who offers what, weekly
+  hours with breaks, time off). A checklist shows what's still missing before the salon can take a
+  booking, and the booking link sits under the salon's name with a Copy button.
 
 To try the owner side locally, sign in as `owner@slotbook.test` (created by `npm run db:seed`).
 
@@ -187,8 +209,8 @@ Customers and owners sign in with `POST /auth/login` and send `Authorization: Be
 | Anyone | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout` | Accounts and sessions |
 | Anyone | `GET /auth/me` | The signed-in user |
 | Owner | `POST /businesses`, `GET /businesses/mine`, `PATCH /businesses/:id` | Manage salons |
-| Owner | `/businesses/:id/services` | Create, list, update, hide services |
-| Owner | `/businesses/:id/staff`, `.../staff/:staffId/services` | Staff and what each one offers |
+| Owner | `/businesses/:id/services` | Create, list, update, hide and show again |
+| Owner | `/businesses/:id/staff`, `.../staff/:staffId`, `.../staff/:staffId/services` | Add, rename, hide staff, and what each one offers |
 | Owner | `.../staff/:staffId/working-hours` | Weekly schedule, split shifts allowed |
 | Owner | `.../staff/:staffId/time-off` | Leave and holidays |
 | Owner | `GET /businesses/:id/bookings` | Bookings in a date range |
@@ -217,7 +239,9 @@ apps/api/
 Dockerfile                        production image
 docker-compose.yml                dev services, plus the full stack with --profile full
 .github/workflows/ci.yml          type check, tests and an image build on every push
+apps/web/                         the React web app (booking page, My bookings, owner dashboard)
 docs/DEPLOY.md                    putting it online
+docs/brand/                       the logo, light and dark
 ```
 
 ## Roadmap
@@ -231,8 +255,10 @@ docs/DEPLOY.md                    putting it online
 - [x] **Week 6:** reminder emails with Redis and BullMQ
 - [x] **Week 7:** owner calendar and stats, rate limiting, structured logging
 - [x] **Week 8:** Dockerfile, GitHub Actions CI, deployment guide, architecture diagram
-
-Frontend: the customer booking page, "My bookings", the owner calendar and the stats dashboard are built.
+- [x] **Web app:** booking page, "My bookings", owner calendar and stats
+- [x] **Live:** deployed on Vercel, Render and Neon
+- [x] **Owner setup:** create a salon, services, staff, hours and time off, the setup checklist,
+  and bookings that keep the price they were made at
 
 Ideas for later: Google Calendar sync, Stripe deposits to reduce no-shows,
 a waitlist, and a Claude-powered "book by chat" assistant.
