@@ -5,13 +5,29 @@ import { useAuthDialog } from "./auth/AuthDialog";
 import { cn } from "./lib/cn";
 import { Button } from "./ui/Button";
 
+// The logo: a week of time slots as a 3x3 grid, with one booked (the coral one).
+const SLOT_POSITIONS = [7, 13.5, 20];
+
 export function Logo({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" className={cn("size-7", className)} aria-hidden="true">
-      <rect width="32" height="32" rx="8" className="fill-accent" />
-      <rect x="7" y="9" width="18" height="16" rx="3" fill="none" stroke="white" strokeWidth="2" />
-      <path d="M7 14h18M12 6v5M20 6v5" stroke="white" strokeWidth="2" strokeLinecap="round" />
+      <rect width="32" height="32" rx="8" className="fill-brand-teal" />
+      {SLOT_POSITIONS.flatMap((y) =>
+        SLOT_POSITIONS.map((x) => {
+          const booked = x === 13.5 && y === 13.5;
+          return <rect key={`${x}-${y}`} x={x} y={y} width="5" height="5" rx="1.5" className={booked ? "fill-brand-slot" : "fill-white/35"} />;
+        }),
+      )}
     </svg>
+  );
+}
+
+/** "Slot" in ink, "Book" in the brand coral: the word customers come here to do gets the colour. */
+export function Wordmark() {
+  return (
+    <span className="tracking-[-0.01em]">
+      Slot<span className="text-brand-coral">Book</span>
+    </span>
   );
 }
 
@@ -28,7 +44,9 @@ export function Layout() {
           <Link to="/" className="flex items-center gap-2 text-[17px] font-medium">
             <Logo />
             {/* The word is dropped on phones, so the navigation has room. The logo is still a link home. */}
-            <span className="hidden sm:inline">SlotBook</span>
+            <span className="hidden sm:inline">
+              <Wordmark />
+            </span>
             <span className="sr-only sm:hidden">SlotBook home</span>
           </Link>
           <nav className="flex items-center gap-1" aria-label="Main">

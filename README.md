@@ -1,4 +1,9 @@
-# SlotBook
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-dark.svg" />
+    <img src="docs/brand/logo-light.svg" alt="SlotBook" width="212" height="48" />
+  </picture>
+</h1>
 
 Appointment booking for salons and clinics. Businesses set up services, staff and working
 hours; customers book open slots and get email reminders; owners see a calendar and stats.

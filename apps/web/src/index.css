@@ -30,6 +30,11 @@
   --color-accent-soft: var(--accent-soft);
   --color-accent-ink: var(--accent-ink);
 
+  /* Brand colours, for the logo only. The app's interface keeps using --accent. */
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-coral: var(--brand-coral);
+  --color-brand-slot: var(--brand-slot);
+
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-success: var(--success);
@@ -65,6 +70,13 @@
   --accent-soft: #e2f2ef;
   --accent-ink: #0b5f58;
 
+  /* Logo: a teal tile with one coral "booked" slot, and "Book" in coral.
+     The tile and the slot stay the same in dark mode (the icon is its own little scene);
+     only the coral text lightens, so it stays readable on a dark header. */
+  --brand-teal: #0f766e;
+  --brand-slot: #f0997b;
+  --brand-coral: #d85a30;
+
   --danger: #b42318;
   --danger-soft: #fdecea;
   --success: #1d7a46;
@@ -96,6 +108,8 @@
     --on-accent: #0a1f1d;
     --accent-soft: #163330;
     --accent-ink: #8fdcd2;
+
+    --brand-coral: #f0997b;
 
     --danger: #f08379;
     --danger-soft: #3a1d1a;
