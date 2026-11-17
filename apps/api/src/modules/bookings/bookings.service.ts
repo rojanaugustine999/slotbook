@@ -16,6 +16,7 @@ const bookingFields = {
   id: true,
   startsAt: true,
   endsAt: true,
+  priceCents: true, // the price saved with the booking, not the service's current price
   status: true,
   notes: true,
   service: { select: { id: true, name: true, durationMin: true, priceCents: true } },
@@ -89,7 +90,7 @@ export async function createBooking(slug: string, customerId: string, input: Cre
 
   const service = await prisma.service.findFirst({
     where: { id: input.serviceId, businessId: business.id, active: true },
-    select: { durationMin: true, bufferMin: true },
+    select: { durationMin: true, bufferMin: true, priceCents: true },
   });
   if (!service) throw notFound("Service not found");
 
@@ -115,6 +116,9 @@ export async function createBooking(slug: string, customerId: string, input: Cre
           customerId,
           startsAt,
           endsAt,
+          // Copied from the service as it is right now, and never taken from the request:
+          // a customer could otherwise send { "priceCents": 1 }. Later price changes leave it alone.
+          priceCents: service.priceCents,
           notes: input.notes,
           status: "confirmed",
         },

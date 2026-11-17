@@ -36,6 +36,7 @@ async function insertBooking(salon: Salon, staffId: string, customerId: string, 
       customerId,
       startsAt,
       endsAt: new Date(startsAt.getTime() + 30 * 60 * 1000),
+      priceCents: 30000, // the test salon's Haircut price; these tests are about times, not money
       status,
     },
   });

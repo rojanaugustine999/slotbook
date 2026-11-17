@@ -51,6 +51,7 @@ export interface Booking {
   id: string;
   startsAt: string; // an exact moment, in UTC
   endsAt: string;
+  priceCents: number; // the price when it was booked. Show this, not service.priceCents (today's price)
   status: BookingStatus;
   notes: string | null;
   service: { id: string; name: string; durationMin: number; priceCents: number };

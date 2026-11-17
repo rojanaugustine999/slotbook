@@ -41,7 +41,7 @@ export function BookingDialog({ booking, businessId, timezone, now, onClose }: P
           <dl className="mt-4 space-y-2.5 text-[15px]">
             <Row label="When" value={formatDayLong(localDate(booking.startsAt, timezone))} extra={formatTimeRange(booking.startsAt, booking.endsAt, timezone)} />
             <Row label="With" value={booking.staff.name} />
-            <Row label="Price" value={formatPrice(booking.service.priceCents)} />
+            <Row label="Price" value={formatPrice(booking.priceCents)} />
             <div className="border-t border-line pt-2.5">
               <Row label="Customer" value={booking.customer.name} />
             </div>
