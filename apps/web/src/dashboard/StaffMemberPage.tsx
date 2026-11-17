@@ -109,14 +109,18 @@ function Header({ businessId, member }: { businessId: string; member: StaffMembe
   }
 
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2">
-      <h2 className="mr-auto text-2xl font-medium">{member.name}</h2>
-      <Button variant="ghost" onClick={() => setRenaming(true)}>
-        Rename
-      </Button>
-      <Button variant="ghost" onClick={hide} disabled={update.isPending}>
-        Hide
-      </Button>
+    <div className="mt-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="mr-auto text-2xl font-medium">{member.name}</h2>
+        <Button variant="ghost" onClick={() => setRenaming(true)}>
+          Rename
+        </Button>
+        <Button variant="ghost" onClick={hide} loading={update.isPending}>
+          Hide
+        </Button>
+      </div>
+      {/* Without this, a failed Hide looked like a button that did nothing. */}
+      {update.isError && <Notice tone="error" className="mt-2">{describeError(update.error)}</Notice>}
     </div>
   );
 }

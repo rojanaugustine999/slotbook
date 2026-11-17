@@ -9,6 +9,7 @@ import { Button, Spinner } from "../ui/Button";
 import { Notice } from "../ui/Notice";
 import { WakingUp } from "../ui/WakingUp";
 import { CreateBusiness } from "./CreateBusiness";
+import { BookingLink, SetupChecklist } from "./SetupChecklist";
 
 export interface DashboardContext {
   business: OwnedBusiness;
@@ -23,7 +24,7 @@ export function useDashboardBusiness(): OwnedBusiness {
 // /dashboard/<this business>/stats.
 function TabLink({ to, children }: { to: string; children: React.ReactNode }) {
   return (
-    <NavLink to={to} className={({ isActive }) => cn("-mb-px border-b-2 px-3 py-2 text-[15px]", isActive ? "border-accent font-medium text-ink" : "border-transparent text-ink-2 hover:text-ink")}>
+    <NavLink to={to} className={({ isActive }) => cn("-mb-px whitespace-nowrap border-b-2 px-2.5 py-2 text-[15px] sm:px-3", isActive ? "border-accent font-medium text-ink" : "border-transparent text-ink-2 hover:text-ink")}>
       {children}
     </NavLink>
   );
@@ -131,8 +132,12 @@ export function DashboardLayout() {
                 ) : (
                   <h1 className="text-xl font-medium">{business.name}</h1>
                 )}
+                <div className="mt-1">
+                  <BookingLink slug={business.slug} />
+                </div>
               </div>
             </div>
+            <SetupChecklist key={business.id} business={business} />
             <nav className="mb-6 flex gap-1 border-b border-line" aria-label="Dashboard sections">
               <TabLink to="calendar">Calendar</TabLink>
               <TabLink to="stats">Stats</TabLink>
