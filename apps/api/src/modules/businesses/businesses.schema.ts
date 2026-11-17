@@ -29,6 +29,12 @@ export const createBusinessSchema = z.object({
   maxAdvanceDays: z.number().int().min(1).max(365).optional(),
 });
 
+// GET /b?q=... : the home page's search box. Empty or missing means "no filter".
+// The cap keeps a silly 10,000-character search from reaching the database.
+export const publicListQuerySchema = z.object({
+  q: z.string().trim().max(100).optional(),
+});
+
 // PATCH: every field optional. Zod's .partial() does exactly that.
 export const updateBusinessSchema = createBusinessSchema.partial();
 

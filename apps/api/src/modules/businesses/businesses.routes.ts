@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { currentUserId, requireAuth } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
-import { createBusinessSchema, updateBusinessSchema } from "./businesses.schema.js";
+import { createBusinessSchema, publicListQuerySchema, updateBusinessSchema } from "./businesses.schema.js";
 import * as businesses from "./businesses.service.js";
 
 // A malformed UUID would make Postgres throw, so reject it early with a clean 400.
@@ -36,9 +36,10 @@ businessesRouter.patch("/:id", validateBody(updateBusinessSchema), async (req, r
 // ── Public routes: /b ──────────────────────────────────────────────────────
 export const publicRouter = Router();
 
-// GET /b  → the salons that are ready to take bookings, for the home page
-publicRouter.get("/", async (_req, res) => {
-  res.json({ businesses: await businesses.listPublicBusinesses() });
+// GET /b?q=hair  → the salons that are ready to take bookings, for the home page (q is optional)
+publicRouter.get("/", async (req, res) => {
+  const { q } = publicListQuerySchema.parse(req.query);
+  res.json({ businesses: await businesses.listPublicBusinesses(q) });
 });
 
 publicRouter.get("/:slug", async (req, res) => {

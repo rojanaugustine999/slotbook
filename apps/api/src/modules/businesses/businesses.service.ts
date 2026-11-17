@@ -61,7 +61,17 @@ export async function updateBusiness(businessId: string, userId: string, input: 
 // ──────────────────────────────────────────────────────────────────────────────
 const LIST_LIMIT = 100; // plenty for now; a search box would come before pagination
 
-export async function listPublicBusinesses() {
+// Search: one word or phrase, matched anywhere in the salon's name, its address (so an area
+// like "Kochi" works), or the name of a service it shows. `mode: "insensitive"` makes
+// "haircut", "Haircut" and "HAIRCUT" all match. Prisma sends the text as a query parameter,
+// never pasted into the SQL, so a search can't change the query (no SQL injection).
+export async function listPublicBusinesses(search?: string) {
+  const q = search?.trim();
+  // `contains` becomes SQL `LIKE '%q%'`, where % means "anything" and _ "any one character".
+  // Prisma doesn't escape them, so a search for "%" matched every salon. A backslash makes
+  // Postgres treat each one as the plain character.
+  const contains = { contains: q?.replace(/[\\%_]/g, "\\$&"), mode: "insensitive" as const };
+
   const rows = await prisma.business.findMany({
     where: {
       staff: {
@@ -71,6 +81,9 @@ export async function listPublicBusinesses() {
           services: { some: { service: { active: true } } },
         },
       },
+      ...(q
+        ? { OR: [{ name: contains }, { address: contains }, { services: { some: { active: true, name: contains } } }] }
+        : {}),
     },
     select: {
       name: true,

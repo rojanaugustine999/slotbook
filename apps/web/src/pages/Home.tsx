@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import { describeError } from "../api/client";
+import { cn } from "../lib/cn";
+import { useDebouncedValue } from "../lib/useDebouncedValue";
 import { usePublicBusinesses } from "../api/hooks";
 import type { PublicBusinessCard } from "../api/types";
 import { Spinner } from "../ui/Button";
@@ -20,7 +23,11 @@ function initials(name: string): string {
 }
 
 export function Home() {
-  const salons = usePublicBusinesses();
+  const [search, setSearch] = useState("");
+  const query = useDebouncedValue(search.trim()); // ask the server once you pause typing
+  const salons = usePublicBusinesses(query);
+  // True while the list on screen is from an earlier search and the new one is loading.
+  const updating = salons.isFetching && salons.isPlaceholderData;
 
   return (
     <div className="mx-auto max-w-xl py-10 text-center sm:py-20">
@@ -28,6 +35,27 @@ export function Home() {
       <p className="mt-4 text-[17px] text-ink-2">Pick a service, choose a time that works, and get a confirmation by email. No phone calls.</p>
 
       <section aria-label="Salons taking bookings" className="mt-10 text-left">
+        <label htmlFor="salon-search" className="sr-only">
+          Search salons
+        </label>
+        <div className="relative mb-4">
+          <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-ink-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-3.5-3.5" />
+          </svg>
+          <input
+            id="salon-search"
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            maxLength={100}
+            placeholder="Search by salon, area or service"
+            autoComplete="off"
+            className="h-12 w-full rounded-control border border-line-strong bg-surface pl-11 pr-11 text-[15px] text-ink placeholder:text-ink-3"
+          />
+          {updating && <Spinner className="absolute right-3.5 top-1/2 -translate-y-1/2 text-ink-3" />}
+        </div>
+
         {salons.isPending ? (
           <div className="flex flex-col items-center py-6 text-ink-3">
             <Spinner className="size-6" />
@@ -36,9 +64,18 @@ export function Home() {
         ) : salons.isError ? (
           <Notice tone="error">{describeError(salons.error)}</Notice>
         ) : salons.data.length === 0 ? (
-          <Notice>No salons are taking bookings yet.</Notice>
+          query ? (
+            <Notice>
+              No salons match "{query}". Try a salon name, an area like Kochi, or a service like haircut.{" "}
+              <button type="button" onClick={() => setSearch("")} className="font-medium text-accent underline underline-offset-2">
+                Show all salons
+              </button>
+            </Notice>
+          ) : (
+            <Notice>No salons are taking bookings yet.</Notice>
+          )
         ) : (
-          <ul className="space-y-3">
+          <ul className={cn("space-y-3 transition-opacity", updating && "opacity-60")}>
             {salons.data.map((salon) => (
               <li key={salon.slug}>
                 <SalonCard salon={salon} />
@@ -46,6 +83,10 @@ export function Home() {
             ))}
           </ul>
         )}
+        {/* Tells screen-reader users how many results there are, without moving their focus. */}
+        <p role="status" className="sr-only">
+          {salons.data && !salons.isPending && (query ? `${salons.data.length} ${salons.data.length === 1 ? "salon matches" : "salons match"} "${query}"` : `${salons.data.length} salons`)}
+        </p>
       </section>
 
       <p className="mt-8 text-[15px] text-ink-2">

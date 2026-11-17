@@ -19,12 +19,15 @@ export function useBusiness(slug: string) {
 }
 
 /** The salons ready to take bookings, for the home page. */
-export function usePublicBusinesses() {
+export function usePublicBusinesses(search = "") {
+  const q = search.trim();
   return useQuery({
     // Under ["business"], so the owner's changes to services or staff (which invalidate
     // ["business"]) refresh this list too. An object can never clash with a salon's slug.
-    queryKey: ["business", { list: true }],
-    queryFn: async () => (await api<{ businesses: PublicBusinessCard[] }>("/b", { auth: false })).businesses,
+    // Each search is cached on its own, so going back to an earlier search is instant.
+    queryKey: ["business", { list: true, q }],
+    queryFn: async () => (await api<{ businesses: PublicBusinessCard[] }>(q ? `/b?q=${encodeURIComponent(q)}` : "/b", { auth: false })).businesses,
+    placeholderData: keepPreviousData, // keep showing the last results while the next ones load
   });
 }
 

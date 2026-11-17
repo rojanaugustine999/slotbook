@@ -133,3 +133,70 @@ describe("GET /b: the public list of salons", () => {
     expect(listed.services).toEqual(["Haircut"]);
   });
 });
+
+describe("GET /b?q=: searching the salon list", () => {
+  // Two ready salons with different names, areas and services.
+  async function twoSalons() {
+    const lotus = await setupSalon(app); // offers "Haircut"
+    await addStaff(app, lotus, "Priya", "09:00", "17:00");
+    await request(app).patch(`/businesses/${lotus.businessId}`).set(lotus.auth).send({ name: "Lotus Spa", address: "Kowdiar, Thiruvananthapuram" });
+
+    const glow = await setupSalon(app);
+    const staffId = await addStaff(app, glow, "Arjun", "09:00", "17:00");
+    await request(app).patch(`/businesses/${glow.businessId}`).set(glow.auth).send({ name: "Glow Studio", address: "MG Road, Kochi" });
+    const facial = await createService(app, glow.auth, glow.businessId, "Bridal Facial");
+    await request(app).put(`/businesses/${glow.businessId}/staff/${staffId}/services`).set(glow.auth).send({ serviceIds: [glow.serviceId, facial] });
+    return { lotus, glow };
+  }
+  const names = async (q: string) => (await request(app).get("/b").query({ q })).body.businesses.map((b: { name: string }) => b.name);
+
+  it("matches the name, ignoring upper and lower case", async () => {
+    await twoSalons();
+    expect(await names("lotus")).toEqual(["Lotus Spa"]);
+    expect(await names("GLOW")).toEqual(["Glow Studio"]);
+  });
+
+  it("matches the area in the address", async () => {
+    await twoSalons();
+    expect(await names("kochi")).toEqual(["Glow Studio"]);
+  });
+
+  it("matches a service the salon shows", async () => {
+    await twoSalons();
+    expect(await names("facial")).toEqual(["Glow Studio"]);
+    expect(await names("haircut")).toEqual(["Glow Studio", "Lotus Spa"]); // both offer one
+  });
+
+  it("doesn't match a hidden service", async () => {
+    const { glow } = await twoSalons();
+    const facial = (await request(app).get(`/businesses/${glow.businessId}/services`).set(glow.auth)).body.services.find((s: { name: string }) => s.name === "Bridal Facial");
+    await request(app).delete(`/businesses/${glow.businessId}/services/${facial.id}`).set(glow.auth);
+    expect(await names("facial")).toEqual([]);
+  });
+
+  it("never finds a salon that isn't ready, even when the name matches", async () => {
+    await twoSalons();
+    const unfinished = await setupSalon(app); // services, but nobody to book with
+    await request(app).patch(`/businesses/${unfinished.businessId}`).set(unfinished.auth).send({ name: "Lotus Express" });
+    expect(await names("lotus")).toEqual(["Lotus Spa"]);
+  });
+
+  it("returns every ready salon for an empty search, and nothing for no match", async () => {
+    await twoSalons();
+    expect(await names("   ")).toEqual(["Glow Studio", "Lotus Spa"]);
+    expect(await names("zzz")).toEqual([]);
+  });
+
+  it("treats % and _ as plain characters, not wildcards", async () => {
+    const { lotus } = await twoSalons();
+    expect(await names("%")).toEqual([]); // before the fix, this matched every salon
+    expect(await names("_")).toEqual([]);
+    await request(app).patch(`/businesses/${lotus.businessId}`).set(lotus.auth).send({ name: "Lotus 50% Off" });
+    expect(await names("50%")).toEqual(["Lotus 50% Off"]);
+  });
+
+  it("refuses a search longer than 100 characters", async () => {
+    const res = await request(app).get("/b").query({ q: "a".repeat(101) });
+    expect(res.status).toBe(400);
+  });
+});
