@@ -147,6 +147,10 @@ bookings cannot.
 - `JWT_ACCESS_SECRET` is a long random value that exists only in the host's settings.
 - `.env` files are not committed (they are already in `.gitignore`).
 - `CORS_ORIGIN` is your real frontend address, not `localhost`.
-- Run `npm audit` and read the result. At the time of writing it reports a few high-severity
-  warnings in `zod` and a Prisma dependency that came with the project; check whether fixes
-  are available before launch.
+- Run `npm audit` and read the result. `zod` was upgraded to 4 to fix a high-severity advisory
+  (it validates every request body, so that one mattered). One known warning remains:
+  `deepmerge-ts` 7 inside Prisma's command-line tool (`prisma` → `@prisma/config`). It only
+  runs in `prisma generate` and `prisma migrate`, merging our own config file, so no user input
+  reaches it. The fix is Prisma 7, a planned upgrade of its own. Forcing deepmerge-ts 8 with an
+  npm `overrides` entry was tried and broke the Prisma tool, which also runs the migrations
+  when the live API starts, so it was not kept.
