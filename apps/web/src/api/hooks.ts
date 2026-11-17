@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthProvider";
 import { api } from "./client";
-import type { Availability, Booking, Calendar, CreateBookingInput, OwnedBusiness, OwnerBooking, OwnerService, OwnerStatusChange, PublicBusiness, ServiceInput, StaffMember, Stats, TimeOff } from "./types";
+import type { Availability, Booking, Calendar, CreateBookingInput, OwnedBusiness, OwnerBooking, OwnerService, OwnerStatusChange, PublicBusiness, PublicBusinessCard, ServiceInput, StaffMember, Stats, TimeOff } from "./types";
 import type { HoursBlock } from "../dashboard/hours";
 
 // ─── Data hooks ──────────────────────────────────────────────────────────────
@@ -15,6 +15,16 @@ export function useBusiness(slug: string) {
   return useQuery({
     queryKey: ["business", slug],
     queryFn: async () => (await api<{ business: PublicBusiness }>(`/b/${encodeURIComponent(slug)}`, { auth: false })).business,
+  });
+}
+
+/** The salons ready to take bookings, for the home page. */
+export function usePublicBusinesses() {
+  return useQuery({
+    // Under ["business"], so the owner's changes to services or staff (which invalidate
+    // ["business"]) refresh this list too. An object can never clash with a salon's slug.
+    queryKey: ["business", { list: true }],
+    queryFn: async () => (await api<{ businesses: PublicBusinessCard[] }>("/b", { auth: false })).businesses,
   });
 }
 

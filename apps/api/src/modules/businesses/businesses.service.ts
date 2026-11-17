@@ -52,6 +52,39 @@ export async function updateBusiness(businessId: string, userId: string, input: 
   }
 }
 
+// ─── The public list of salons (the home page) ───────────────────────────────
+// Only salons that can actually take a booking: at least one shown staff member who
+// offers a shown service AND has weekly hours. All three must be true of the SAME person,
+// which is why they sit inside one `some`. A salon still being set up would show a booking
+// page with no times, so it stays off the list until its owner finishes the checklist.
+// Public fields only: no ids, no owner, no settings.
+// ──────────────────────────────────────────────────────────────────────────────
+const LIST_LIMIT = 100; // plenty for now; a search box would come before pagination
+
+export async function listPublicBusinesses() {
+  const rows = await prisma.business.findMany({
+    where: {
+      staff: {
+        some: {
+          active: true,
+          workingHours: { some: {} },
+          services: { some: { service: { active: true } } },
+        },
+      },
+    },
+    select: {
+      name: true,
+      slug: true,
+      address: true,
+      services: { where: { active: true }, select: { name: true }, orderBy: { name: "asc" }, take: 3 },
+    },
+    orderBy: { name: "asc" },
+    take: LIST_LIMIT,
+  });
+  // A few service names give each card a hint of what the salon offers.
+  return rows.map(({ services, ...business }) => ({ ...business, services: services.map((s) => s.name) }));
+}
+
 // Public page: only safe fields and only active services/staff.
 export async function getPublicBusiness(slug: string) {
   const business = await prisma.business.findUnique({

@@ -36,6 +36,11 @@ businessesRouter.patch("/:id", validateBody(updateBusinessSchema), async (req, r
 // ── Public routes: /b ──────────────────────────────────────────────────────
 export const publicRouter = Router();
 
+// GET /b  → the salons that are ready to take bookings, for the home page
+publicRouter.get("/", async (_req, res) => {
+  res.json({ businesses: await businesses.listPublicBusinesses() });
+});
+
 publicRouter.get("/:slug", async (req, res) => {
   res.json({ business: await businesses.getPublicBusiness(req.params.slug) });
 });

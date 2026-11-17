@@ -32,6 +32,14 @@ export interface PublicBusiness {
   staff: PublicStaff[];
 }
 
+// ── The home page's list: GET /b ────────────────────────────────────────────
+export interface PublicBusinessCard {
+  name: string;
+  slug: string;
+  address: string | null;
+  services: string[]; // up to three names, A to Z
+}
+
 // ── Availability: GET /b/:slug/availability ─────────────────────────────────
 export interface Slot {
   time: string; // "09:30", in the salon's timezone

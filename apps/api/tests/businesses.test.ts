@@ -2,7 +2,8 @@ import request from "supertest";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import { resetDb } from "./helpers/db.js";
-import { createOwner } from "./helpers/factory.js";
+import { createOwner, createService, createStaff } from "./helpers/factory.js";
+import { addStaff, setupSalon } from "./helpers/salon.js";
 
 const app = createApp();
 
@@ -73,5 +74,62 @@ describe("creating a business", () => {
   it("needs a signed-in user", async () => {
     const res = await request(app).post("/businesses").send(salon("no-owner"));
     expect(res.status).toBe(401);
+  });
+});
+
+describe("GET /b: the public list of salons", () => {
+  it("lists salons that can take a booking, A to Z, with a few of their services", async () => {
+    const zebra = await setupSalon(app); // factory names: "Salon N"
+    await addStaff(app, zebra, "Priya", "09:00", "17:00");
+    await request(app).patch(`/businesses/${zebra.businessId}`).set(zebra.auth).send({ name: "Zebra Studio", address: "MG Road, Kochi" });
+    const aurora = await setupSalon(app);
+    await addStaff(app, aurora, "Arjun", "10:00", "18:00");
+    await request(app).patch(`/businesses/${aurora.businessId}`).set(aurora.auth).send({ name: "Aurora Spa" });
+
+    const res = await request(app).get("/b"); // no login: anyone can see it
+    expect(res.status).toBe(200);
+    expect(res.body.businesses).toEqual([
+      { name: "Aurora Spa", slug: aurora.slug, address: null, services: ["Haircut"] },
+      { name: "Zebra Studio", slug: zebra.slug, address: "MG Road, Kochi", services: ["Haircut"] },
+    ]);
+  });
+
+  it("leaves out salons still being set up", async () => {
+    // Only services, nobody to book with.
+    await setupSalon(app);
+    // Someone who offers nothing.
+    const noServices = await setupSalon(app);
+    await createStaff(app, noServices.auth, noServices.businessId, "Priya");
+    // Someone who offers a service but has no hours.
+    const noHours = await setupSalon(app);
+    const staffId = await createStaff(app, noHours.auth, noHours.businessId, "Arjun");
+    await request(app).put(`/businesses/${noHours.businessId}/staff/${staffId}/services`).set(noHours.auth).send({ serviceIds: [noHours.serviceId] });
+
+    const res = await request(app).get("/b");
+    expect(res.body.businesses).toEqual([]);
+  });
+
+  it("drops a salon when its only service or person is hidden", async () => {
+    const salon = await setupSalon(app);
+    const priya = await addStaff(app, salon, "Priya", "09:00", "17:00");
+    expect((await request(app).get("/b")).body.businesses).toHaveLength(1);
+
+    await request(app).delete(`/businesses/${salon.businessId}/services/${salon.serviceId}`).set(salon.auth);
+    expect((await request(app).get("/b")).body.businesses).toHaveLength(0);
+
+    await request(app).patch(`/businesses/${salon.businessId}/services/${salon.serviceId}`).set(salon.auth).send({ active: true });
+    await request(app).delete(`/businesses/${salon.businessId}/staff/${priya}`).set(salon.auth);
+    expect((await request(app).get("/b")).body.businesses).toHaveLength(0);
+  });
+
+  it("shows only shown services, and nothing private", async () => {
+    const salon = await setupSalon(app);
+    await addStaff(app, salon, "Priya", "09:00", "17:00");
+    const hidden = await createService(app, salon.auth, salon.businessId, "Secret Treatment");
+    await request(app).delete(`/businesses/${salon.businessId}/services/${hidden}`).set(salon.auth);
+
+    const [listed] = (await request(app).get("/b")).body.businesses;
+    expect(Object.keys(listed).sort()).toEqual(["address", "name", "services", "slug"]); // no id, owner or settings
+    expect(listed.services).toEqual(["Haircut"]);
   });
 });
