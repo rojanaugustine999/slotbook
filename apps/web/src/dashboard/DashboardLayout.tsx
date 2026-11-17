@@ -8,6 +8,8 @@ import { cn } from "../lib/cn";
 import { Button, Spinner } from "../ui/Button";
 import { Notice } from "../ui/Notice";
 import { WakingUp } from "../ui/WakingUp";
+import { CreateBusiness } from "./CreateBusiness";
+import { BookingLink, SetupChecklist } from "./SetupChecklist";
 
 export interface DashboardContext {
   business: OwnedBusiness;
@@ -22,7 +24,7 @@ export function useDashboardBusiness(): OwnedBusiness {
 // /dashboard/<this business>/stats.
 function TabLink({ to, children }: { to: string; children: React.ReactNode }) {
   return (
-    <NavLink to={to} className={({ isActive }) => cn("-mb-px border-b-2 px-3 py-2 text-[15px]", isActive ? "border-accent font-medium text-ink" : "border-transparent text-ink-2 hover:text-ink")}>
+    <NavLink to={to} className={({ isActive }) => cn("-mb-px whitespace-nowrap border-b-2 px-2.5 py-2 text-[15px] sm:px-3", isActive ? "border-accent font-medium text-ink" : "border-transparent text-ink-2 hover:text-ink")}>
       {children}
     </NavLink>
   );
@@ -45,10 +47,13 @@ export function DashboardGate({ children }: { children: (businesses: OwnedBusine
     return (
       <Centered>
         <h1 className="text-xl font-medium">Owner dashboard</h1>
-        <p className="mt-2 text-ink-2">Sign in with your business account to see your calendar.</p>
-        <Button variant="primary" className="mt-5" onClick={() => openAuth({ reason: "Sign in to open your dashboard." })}>
-          Sign in
-        </Button>
+        <p className="mt-2 text-ink-2">Sign in to see your calendar, or create an account to set up your salon.</p>
+        <div className="mt-5 flex flex-wrap justify-center gap-3">
+          <Button variant="primary" onClick={() => openAuth({ reason: "Sign in to open your dashboard." })}>
+            Sign in
+          </Button>
+          <Button onClick={() => openAuth({ mode: "signUp", reason: "Create an account, then set up your salon." })}>Create account</Button>
+        </div>
       </Centered>
     );
   }
@@ -56,14 +61,8 @@ export function DashboardGate({ children }: { children: (businesses: OwnedBusine
   if (businesses.isPending) return <Centered><Spinner className="size-6" /><WakingUp /></Centered>;
   if (businesses.isError) return <Notice tone="error">{describeError(businesses.error)}</Notice>;
 
-  if (businesses.data.length === 0) {
-    return (
-      <Centered>
-        <h1 className="text-xl font-medium">No business yet</h1>
-        <p className="mt-2 text-ink-2">This account doesn't manage a business. Customers can see their appointments under "My bookings".</p>
-      </Centered>
-    );
-  }
+  // A signed-in person with no salon yet: this is where an owner's setup begins.
+  if (businesses.data.length === 0) return <CreateBusiness />;
 
   return <>{children(businesses.data)}</>;
 }
@@ -133,11 +132,17 @@ export function DashboardLayout() {
                 ) : (
                   <h1 className="text-xl font-medium">{business.name}</h1>
                 )}
+                <div className="mt-1">
+                  <BookingLink slug={business.slug} />
+                </div>
               </div>
             </div>
+            <SetupChecklist key={business.id} business={business} />
             <nav className="mb-6 flex gap-1 border-b border-line" aria-label="Dashboard sections">
               <TabLink to="calendar">Calendar</TabLink>
               <TabLink to="stats">Stats</TabLink>
+              <TabLink to="services">Services</TabLink>
+              <TabLink to="staff">Staff</TabLink>
             </nav>
             <Outlet context={{ business } satisfies DashboardContext} />
           </div>

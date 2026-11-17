@@ -16,5 +16,6 @@ export const badRequest = (message = "Bad request") => new HttpError(400, "BAD_R
 export const unauthorized = (message = "Not signed in") => new HttpError(401, "UNAUTHORIZED", message);
 export const forbidden = (message = "Not allowed") => new HttpError(403, "FORBIDDEN", message);
 export const notFound = (message = "Not found") => new HttpError(404, "NOT_FOUND", message);
-export const conflict = (message = "Conflict") => new HttpError(409, "CONFLICT", message);
+// The code is optional, so a form can tell one conflict from another (e.g. SLUG_TAKEN).
+export const conflict = (message = "Conflict", code = "CONFLICT") => new HttpError(409, code, message);
 export const tooManyRequests = (message = "Too many requests. Please slow down.") => new HttpError(429, "RATE_LIMITED", message);

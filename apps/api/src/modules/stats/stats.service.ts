@@ -74,11 +74,13 @@ export async function getBusinessStats(businessId: string, userId: string, query
   }
 
   // ── 3. Most-booked services, with the money actually earned ────────────────
-  // JOIN pulls each booking's service so we can add up prices. Revenue counts only
-  // COMPLETED bookings: a booking that is still upcoming hasn't earned anything yet.
+  // JOIN pulls each booking's service for its name. The money comes from the booking
+  // itself (b.price_cents, the price when it was booked), so changing a price later
+  // doesn't rewrite past revenue. Revenue counts only COMPLETED bookings: a booking
+  // that is still upcoming hasn't earned anything yet.
   const topRows = await prisma.$queryRaw<{ id: string; name: string; bookings: bigint; revenue: bigint }[]>`
     SELECT s.id, s.name, COUNT(*) AS bookings,
-           COALESCE(SUM(CASE WHEN b.status = 'completed' THEN s.price_cents ELSE 0 END), 0) AS revenue
+           COALESCE(SUM(CASE WHEN b.status = 'completed' THEN b.price_cents ELSE 0 END), 0) AS revenue
     FROM bookings b
     JOIN services s ON s.id = b.service_id
     WHERE b.business_id = ${businessId}::uuid
@@ -91,11 +93,11 @@ export async function getBusinessStats(businessId: string, userId: string, query
 
   // ── 4. Total revenue ───────────────────────────────────────────────────────
   // The top-services list above stops at five rows, so adding those up would miss the
-  // rest. This sums every completed booking's price, whatever the service.
+  // rest. This sums every completed booking's saved price. Each booking carries its own
+  // price, so the services table isn't needed here at all.
   const revenueRows = await prisma.$queryRaw<{ revenue: bigint }[]>`
-    SELECT COALESCE(SUM(s.price_cents), 0) AS revenue
+    SELECT COALESCE(SUM(b.price_cents), 0) AS revenue
     FROM bookings b
-    JOIN services s ON s.id = b.service_id
     WHERE b.business_id = ${businessId}::uuid
       AND b.starts_at >= ${rangeStart}
       AND b.starts_at < ${rangeEnd}

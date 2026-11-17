@@ -92,7 +92,7 @@ function BookingCard({ booking, canCancel }: { booking: Booking; canCancel?: boo
         <StatusBadge status={booking.status} />
       </div>
       <p className="mt-2 text-sm text-ink-2">
-        {booking.business.name} · with {booking.staff.name} · {formatPrice(booking.service.priceCents)}
+        {booking.business.name} · with {booking.staff.name} · {formatPrice(booking.priceCents)}
       </p>
 
       {canCancel && (

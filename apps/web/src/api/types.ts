@@ -51,6 +51,7 @@ export interface Booking {
   id: string;
   startsAt: string; // an exact moment, in UTC
   endsAt: string;
+  priceCents: number; // the price when it was booked. Show this, not service.priceCents (today's price)
   status: BookingStatus;
   notes: string | null;
   service: { id: string; name: string; durationMin: number; priceCents: number };
@@ -65,6 +66,30 @@ export interface OwnedBusiness {
   slug: string;
   timezone: string;
   address: string | null;
+}
+
+/** A service as the owner sees it: includes hidden ones and the cleanup time. */
+export interface OwnerService {
+  id: string;
+  name: string;
+  durationMin: number;
+  bufferMin: number; // cleanup time after each appointment, not shown to customers
+  priceCents: number;
+  active: boolean;
+}
+
+export interface ServiceInput {
+  name: string;
+  durationMin: number;
+  bufferMin: number;
+  priceCents: number;
+}
+
+export interface TimeOff {
+  id: string;
+  startsAt: string; // exact moments, in UTC
+  endsAt: string;
+  reason: string | null;
 }
 
 export interface StaffMember {

@@ -19,6 +19,8 @@ export async function insertBookingAt(args: {
   status: BookingStatusName;
 }) {
   const startsAt = new Date(args.startsAt);
+  // Like the real booking code: the booking keeps the service's price at the time it is made.
+  const service = await prisma.service.findUniqueOrThrow({ where: { id: args.serviceId }, select: { priceCents: true } });
   return prisma.booking.create({
     data: {
       businessId: args.businessId,
@@ -27,6 +29,7 @@ export async function insertBookingAt(args: {
       customerId: args.customerId,
       startsAt,
       endsAt: new Date(startsAt.getTime() + 30 * 60 * 1000),
+      priceCents: service.priceCents,
       status: args.status,
     },
   });

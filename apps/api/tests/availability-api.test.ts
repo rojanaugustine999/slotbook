@@ -61,7 +61,7 @@ describe("GET /b/:slug/availability", () => {
     const salon = await setupSalon();
     const priya = await addStaff(salon, "Priya", "09:00", "11:00");
     const customer = await prisma.user.create({ data: { email: "c@example.com", name: "Customer", passwordHash: "x" } });
-    const booking = { businessId: salon.businessId, staffId: priya, serviceId: salon.serviceId, customerId: customer.id };
+    const booking = { businessId: salon.businessId, staffId: priya, serviceId: salon.serviceId, customerId: customer.id, priceCents: 30000 };
     await prisma.booking.create({ data: { ...booking, startsAt: at("09:30"), endsAt: at("10:00"), status: "confirmed" } });
     await prisma.booking.create({ data: { ...booking, startsAt: at("10:30"), endsAt: at("11:00"), status: "cancelled" } });
 

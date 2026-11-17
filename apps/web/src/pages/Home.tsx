@@ -23,6 +23,13 @@ export function Home() {
           <path d="M9 6l6 6-6 6" />
         </svg>
       </Link>
+
+      <p className="mt-8 text-[15px] text-ink-2">
+        Run a salon or clinic?{" "}
+        <Link to="/dashboard" className="font-medium text-accent underline underline-offset-2">
+          Set up your booking page
+        </Link>
+      </p>
     </div>
   );
 }

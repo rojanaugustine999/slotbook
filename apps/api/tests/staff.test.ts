@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import { resetDb } from "./helpers/db.js";
 import { createBusiness, createOwner, createService } from "./helpers/factory.js";
+import { addStaff, date, setupSalon } from "./helpers/salon.js";
 
 const app = createApp();
 
@@ -98,5 +99,44 @@ describe("staff services", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.staff.services).toHaveLength(1);
+  });
+});
+
+describe("renaming and hiding staff", () => {
+  it("renames a staff member", async () => {
+    const salon = await setupSalon(app);
+    const priya = await addStaff(app, salon, "Priya", "09:00", "11:00");
+
+    const res = await request(app).patch(`/businesses/${salon.businessId}/staff/${priya}`).set(salon.auth).send({ name: "Priya Nair" });
+    expect(res.status).toBe(200);
+    expect(res.body.staff).toMatchObject({ name: "Priya Nair", active: true });
+  });
+
+  it("hides a staff member from booking times, keeps them in the owner's list, and can bring them back", async () => {
+    const salon = await setupSalon(app);
+    const priya = await addStaff(app, salon, "Priya", "09:00", "11:00");
+    const slots = async () => (await request(app).get(`/b/${salon.slug}/availability`).query({ serviceId: salon.serviceId, date })).body.slots;
+    expect((await slots()).length).toBeGreaterThan(0);
+
+    const hide = await request(app).delete(`/businesses/${salon.businessId}/staff/${priya}`).set(salon.auth);
+    expect(hide.status).toBe(204);
+    expect(await slots()).toEqual([]); // nobody left to book with
+
+    const list = await request(app).get(`/businesses/${salon.businessId}/staff`).set(salon.auth);
+    expect(list.body.staff[0]).toMatchObject({ id: priya, active: false });
+
+    await request(app).patch(`/businesses/${salon.businessId}/staff/${priya}`).set(salon.auth).send({ active: true });
+    expect((await slots()).length).toBeGreaterThan(0);
+  });
+
+  it("won't let another owner rename or hide someone's staff", async () => {
+    const salon = await setupSalon(app);
+    const priya = await addStaff(app, salon, "Priya", "09:00", "11:00");
+    const stranger = await createOwner(app);
+
+    const rename = await request(app).patch(`/businesses/${salon.businessId}/staff/${priya}`).set(stranger.auth).send({ name: "Spy" });
+    const hide = await request(app).delete(`/businesses/${salon.businessId}/staff/${priya}`).set(stranger.auth);
+    expect(rename.status).toBe(404);
+    expect(hide.status).toBe(404);
   });
 });
