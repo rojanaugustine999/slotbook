@@ -8,19 +8,33 @@ settings you need, not where every button is. Check the host's own docs for the 
 Before you start, the code must be on GitHub (hosts deploy from a repository) and the CI
 run on `main` should be green.
 
-## The quick path: Render and Vercel
+## The quick path: Neon, Render and Vercel
 
-This repository has a Render Blueprint (`render.yaml`) that creates the API, the database and
-Redis together. The web app goes on Vercel. Do the steps in this order, because each one needs
+The database goes on **Neon**, the API and Redis on **Render** (a Blueprint, `render.yaml`,
+creates both), and the web app on **Vercel**. Do the steps in this order, because each one needs
 an address from the one before.
 
-**1. Render: create the API, database and Redis.**
+Why Neon and not Render's own database: Render's free PostgreSQL is deleted 30 days after it is
+created. Neon's free plan has no expiry, and its database wakes by itself on the first query
+after a quiet spell. (Supabase works too, but free projects there pause after a week without
+activity and stay paused until someone restores them.)
+
+**0. Neon: create the database.**
+In Vercel choose **Storage > Neon > Create**, pick the **Free** plan and the **Singapore** region
+(next to the API), and turn off Neon Auth (SlotBook has its own sign-in). Don't connect it to a
+Vercel project: only the API uses it. On the database's page, the **.env.local** snippet has
+several addresses. Use **`DATABASE_URL_UNPOOLED`**, the direct connection: the API applies
+Prisma migrations when it starts, and migrations need a direct connection, not the `-pooler` one.
+Copy Snippet copies the `****` placeholders unless **Show secret** is on.
+
+**1. Render: create the API and Redis.**
 In the Render dashboard choose **New > Blueprint**, connect GitHub if asked, and pick the
-`slotbook` repository. Render reads `render.yaml` and lists three resources: `slotbook-db`,
-`slotbook-redis` and `slotbook-api`. It asks for one value, `CORS_ORIGIN`: enter
-`https://slotbook.vercel.app` for now (step 3 corrects it). Apply. The first build takes a few
-minutes. When it is live, open the API's address (something like
-`https://slotbook-api.onrender.com`) with `/health` on the end: you should see `{"status":"ok"}`.
+`slotbook` repository. Render reads `render.yaml` and lists `slotbook-redis` and `slotbook-api`.
+It asks for two values: `DATABASE_URL` (Neon's direct address from step 0) and `CORS_ORIGIN`
+(enter `https://slotbook.vercel.app` for now; step 3 corrects it). Apply. The first build takes a
+few minutes, and on its first start the API creates every table in Neon. When it is live, open
+the API's address (something like `https://slotbook-api.onrender.com`) with `/health` on the
+end: you should see `{"status":"ok"}`.
 
 **2. Vercel: deploy the web app.**
 In Vercel choose **Add New > Project** and import the `slotbook` repository. Set **Root
@@ -34,12 +48,12 @@ from step 2 (with `https://`, without a trailing slash), and save. The API resta
 Until this matches, the browser blocks the web app's requests.
 
 **4. Add the demo salon.**
-The live database starts empty. In Render open `slotbook-db` > **Connect** and copy the
-**External Database URL**. Then, on your own computer, from the project folder, run the seed
-against it. In PowerShell:
+The live database starts empty. Copy Neon's direct address again (step 0), then, on your own
+computer, from the project folder, run the seed against it. In PowerShell, this reads the
+address from the clipboard so it never appears on screen:
 
 ```powershell
-$env:DATABASE_URL = "<paste the External Database URL>"; npm run db:seed -w @slotbook/api; Remove-Item Env:DATABASE_URL
+$env:DATABASE_URL = (Get-Clipboard).Trim(); npm run db:seed -w @slotbook/api; Remove-Item Env:DATABASE_URL
 ```
 
 That creates Glow Salon, its services and staff, and the demo owner `owner@slotbook.test` with

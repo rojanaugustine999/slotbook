@@ -12,7 +12,7 @@ and running it all in production.
 - **Book an appointment:** [slotbook-gamma.vercel.app/glow-salon](https://slotbook-gamma.vercel.app/glow-salon)
 - **Owner dashboard:** [slotbook-gamma.vercel.app](https://slotbook-gamma.vercel.app). Sign in as `owner@slotbook.test` with the password `password123` (a shared demo account, so others may change its data)
 
-The web app is on Vercel; the API, PostgreSQL and Redis are on Render's free plans. The API
+The web app is on Vercel, the API and Redis on Render, and PostgreSQL on Neon, all on free plans. The API
 sleeps when nobody has used it for a while, so the first visit can take up to a minute while it
 wakes up. Safari may block the sign-in cookie between the two sites and sign you out; Chrome
 works. How it is deployed: [docs/DEPLOY.md](docs/DEPLOY.md).
