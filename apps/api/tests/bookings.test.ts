@@ -1,5 +1,5 @@
 import request from "supertest";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import { prisma } from "../src/lib/db.js";
 import { resetDb } from "./helpers/db.js";
@@ -158,6 +158,93 @@ describe("the race: many customers, one slot", () => {
     const rows = await prisma.booking.findMany({ select: { staffId: true } });
     expect(new Set(rows.map((r) => r.staffId)).size).toBe(2); // two different staff members
   }, RACE_TIMEOUT_MS);
+});
+
+// ─── Why the race tests above used to be flaky ───────────────────────────────
+// When ten inserts fought over one slot at the same instant, their waits for each other's
+// unfinished rows could form a cycle (a deadlock). Sometimes Postgres cancelled one with
+// "deadlock detected" (code 40P01), which the code didn't recognise, so customers got a 500;
+// once in a while the pile stayed stuck until the test timed out. Now writers for the same
+// staff member take turns (an advisory lock), and a deadlock that still happens is retried.
+// Real races only show this now and then, so these tests force the deadlock instead.
+const deadlock = () =>
+  new Error('Invalid `prisma.booking.create()` invocation: ConnectorError { kind: QueryError(PostgresError { code: "40P01", message: "deadlock detected" }) }');
+
+/** Makes the next `failures` booking writes fail with `error` (Infinity: all of them); later ones run for real. */
+function failBookingWrites(failures: number, error: () => Error) {
+  const real = prisma.$transaction.bind(prisma);
+  let calls = 0;
+  const spy = vi.spyOn(prisma, "$transaction").mockImplementation(((...args: never[]) => {
+    calls++;
+    return calls <= failures ? Promise.reject(error()) : (real as (...a: never[]) => unknown)(...args);
+  }) as never);
+  return { spy, calls: () => calls };
+}
+
+describe("when Postgres aborts a booking with a deadlock", () => {
+  it("tries again, and the customer still gets the slot if nobody else took it", async () => {
+    const salon = await setupSalon(app);
+    await addStaff(app, salon, "Priya", "09:00", "11:00");
+    const customer = await createCustomer();
+
+    const writes = failBookingWrites(1, deadlock);
+    try {
+      const res = await request(app).post(`/b/${salon.slug}/bookings`).set(customer.auth).send({ serviceId: salon.serviceId, startsAt: atISO("09:30") });
+      expect(res.status).toBe(201);
+      expect(writes.calls()).toBe(2); // the deadlocked attempt, then the retry that worked
+    } finally {
+      writes.spy.mockRestore();
+    }
+  });
+
+  it("gives up politely with 409 SLOT_TAKEN, never a 500, if it keeps happening", async () => {
+    const salon = await setupSalon(app);
+    await addStaff(app, salon, "Priya", "09:00", "11:00");
+    const customer = await createCustomer();
+
+    const writes = failBookingWrites(Infinity, deadlock);
+    try {
+      const res = await request(app).post(`/b/${salon.slug}/bookings`).set(customer.auth).send({ serviceId: salon.serviceId, startsAt: atISO("09:30") });
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe("SLOT_TAKEN");
+      expect(writes.calls()).toBeGreaterThan(1); // it did retry before giving up...
+      expect(writes.calls()).toBeLessThanOrEqual(5); // ...but not forever
+    } finally {
+      writes.spy.mockRestore();
+    }
+    expect(await prisma.booking.count()).toBe(0);
+  });
+
+  it("does the same when a customer moves a booking", async () => {
+    const salon = await setupSalon(app);
+    await addStaff(app, salon, "Priya", "09:00", "11:00");
+    const customer = await createCustomer();
+    const made = await request(app).post(`/b/${salon.slug}/bookings`).set(customer.auth).send({ serviceId: salon.serviceId, startsAt: atISO("09:30") });
+
+    const writes = failBookingWrites(1, deadlock);
+    try {
+      const res = await request(app).post(`/me/bookings/${made.body.booking.id}/reschedule`).set(customer.auth).send({ startsAt: atISO("10:00") });
+      expect(res.status).toBe(200);
+      expect(writes.calls()).toBe(2);
+    } finally {
+      writes.spy.mockRestore();
+    }
+  });
+
+  it("does not hide a different database error", async () => {
+    const salon = await setupSalon(app);
+    await addStaff(app, salon, "Priya", "09:00", "11:00");
+    const customer = await createCustomer();
+
+    const writes = failBookingWrites(Infinity, () => new Error("connection refused"));
+    try {
+      const res = await request(app).post(`/b/${salon.slug}/bookings`).set(customer.auth).send({ serviceId: salon.serviceId, startsAt: atISO("09:30") });
+      expect(res.status).toBe(500); // a real problem must still look like one
+      expect(writes.calls()).toBe(1); // and must not be retried
+    } finally {
+      writes.spy.mockRestore();
+    }
+  });
 });
 
 describe("GET /me/bookings", () => {

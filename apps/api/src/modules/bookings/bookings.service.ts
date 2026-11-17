@@ -40,6 +40,56 @@ function isDoubleBooking(err: unknown): boolean {
   return String((err as { message?: string })?.message ?? "").includes("no_double_booking");
 }
 
+// True when Postgres cancelled our write because several writes collided at the same instant:
+// "deadlock detected", code 40P01. When ten customers go for one slot, each insert waits for
+// the others' uncommitted rows, and two of them can end up waiting for each other. Postgres
+// breaks the tie by aborting one. Nothing is wrong with the slot or the request, so the right
+// answer is to try again (Postgres's own advice for this error), not to answer 500.
+function isDeadlock(err: unknown): boolean {
+  const message = String((err as { message?: string })?.message ?? "");
+  return message.includes("40P01") || message.includes("deadlock detected");
+}
+
+// Three tries is plenty: each retry only has to outlast the few milliseconds another insert needs.
+const MAX_WRITE_ATTEMPTS = 3;
+
+// ─── Taking turns per staff member ───────────────────────────────────────────
+// When ten customers try to book the same person at the same instant, their inserts each wait
+// for the others' unfinished rows, and those waits can form a cycle: a deadlock. Postgres usually
+// spots it and cancels one (retried below), but not always quickly; the race tests caught the
+// whole pile stuck for 30 seconds. So writers for the SAME staff member queue up first, on a
+// short "advisory" lock: a Postgres lock on a name (here the staff id) instead of on a row,
+// held until this little transaction ends. Bookings for different people still run in parallel.
+//
+// The lock only puts writers in a queue. What keeps double bookings out is still the
+// no_double_booking constraint: if a second customer's turn comes and the slot is gone, Postgres
+// refuses the insert exactly as before.
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Runs a write that the double-booking rule guards, after taking this staff member's turn.
+ * Returns what the write returned, or null when the slot is taken: either Postgres said so
+ * (no_double_booking), or the write kept being cancelled by collisions and we stop trying.
+ * Any other error is a real problem and is thrown, untouched and not retried.
+ */
+async function writeUnlessTaken<T>(staffId: string, write: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T | null> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        // hashtextextended turns the id into the 64-bit number advisory locks are named by.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${staffId}::text, 0))`;
+        return write(tx);
+      });
+    } catch (err) {
+      if (isDoubleBooking(err)) return null;
+      if (!isDeadlock(err)) throw err;
+      if (attempt >= MAX_WRITE_ATTEMPTS) return null;
+      // A short random wait, so the colliding requests don't all retry at the same instant and collide again.
+      await new Promise((resolve) => setTimeout(resolve, 5 + Math.random() * 25 * attempt));
+    }
+  }
+}
+
 // True when an update's WHERE matched no row (Prisma error P2025).
 function isNoRowMatched(err: unknown): boolean {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025";
@@ -106,9 +156,8 @@ export async function createBooking(slug: string, customerId: string, input: Cre
   // Layer 2: try to save. If the customer chose "anyone", slot.staffIds may hold
   // several people; when one was just taken by another customer, try the next.
   for (const staffId of slot.staffIds) {
-    let created;
-    try {
-      created = await prisma.booking.create({
+    const created = await writeUnlessTaken(staffId, (tx) =>
+      tx.booking.create({
         data: {
           businessId: business.id,
           serviceId: input.serviceId,
@@ -123,11 +172,9 @@ export async function createBooking(slug: string, customerId: string, input: Cre
           status: "confirmed",
         },
         select: bookingFields,
-      });
-    } catch (err) {
-      if (!isDoubleBooking(err)) throw err; // a different problem: don't hide it
-      continue; // this staff member was just taken: try the next one
-    }
+      }),
+    );
+    if (!created) continue; // this staff member was just taken: try the next one (any other error was thrown)
 
     // Saved. Now queue the confirmation and reminders. This sits OUTSIDE the
     // try above (a queue problem is not a double booking) and is wrapped so that
@@ -214,16 +261,19 @@ export async function rescheduleMyBooking(customerId: string, bookingId: string,
   // every OTHER booking, so the double-booking rule still protects us here.
   let moved;
   try {
-    moved = await prisma.booking.update({
-      where: { id: booking.id, status: booking.status },
-      data: { startsAt, endsAt, staffId },
-      select: bookingFields,
-    });
+    // The lock is on the person the booking moves TO: that's whose diary could clash.
+    moved = await writeUnlessTaken(staffId, (tx) =>
+      tx.booking.update({
+        where: { id: booking.id, status: booking.status },
+        data: { startsAt, endsAt, staffId },
+        select: bookingFields,
+      }),
+    );
   } catch (err) {
-    if (isDoubleBooking(err)) throw slotTaken();
     if (isNoRowMatched(err)) throw changedMeanwhile();
     throw err;
   }
+  if (!moved) throw slotTaken();
 
   // The old reminders were for the old time. Drop them (without telling the
   // customer it was "cancelled") and plan fresh ones, including a new confirmation.
