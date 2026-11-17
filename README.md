@@ -108,12 +108,14 @@ sequenceDiagram
 | Problem | How it is handled | Where |
 |---|---|---|
 | Two customers book the same slot at the same instant | A Postgres exclusion constraint, not an app-level check. A test fires 10 simultaneous requests and exactly 1 succeeds | `prisma/migrations/*_booking_rules`, `tests/bookings.test.ts` |
+| Those simultaneous inserts deadlocking on each other | Found by reading `pg_stat_activity` while a flaky test hung: some customers got a 500, and sometimes the requests stuck. Writers for the same staff member now take turns on an advisory lock; a deadlock that still happens is retried, then answered "slot taken" | `writeUnlessTaken()` in `modules/bookings/bookings.service.ts` |
 | Which start times are open on a given day? | A pure function: working hours minus time off minus bookings, in the salon's timezone | `modules/availability/availability.ts` |
 | Daylight-saving days and timezones | Moments are stored in UTC. Working hours are local clock times, turned into real moments only for a given date | `toRange()` in `availability.ts` |
 | Stolen login tokens | Short-lived access token plus a rotating refresh token in an httpOnly cookie. A reused refresh token signs out every session | `modules/auth/auth.service.ts` |
 | One owner touching another owner's data | Every owner action starts by loading the business through its owner; strangers get a 404, not a 403 | `getOwnedBusiness()` in `modules/businesses/` |
 | Reminder emails for bookings that were cancelled or moved | Jobs sit in a Redis queue, but the database is the source of truth: the worker re-checks before sending | `modules/notifications/` |
 | Changing a price would rewrite last month's revenue | Each booking keeps a copy of the price it was made at. The migration that added it filled in existing bookings before making the column required | `migrations/*_booking_price`, `tests/booking-price.test.ts` |
+| A search for "%" matched every salon | Prisma's `contains` becomes SQL `LIKE` without escaping, so `%` and `_` acted as wildcards. They are escaped and treated as plain characters | `listPublicBusinesses()` in `modules/businesses/` |
 | Two new owners claim the same booking address at once | The unique index decides, not an "is it free?" lookup; the loser gets `SLUG_TAKEN`. Addresses the web app uses itself (`dashboard`, `assets`) are refused | `modules/businesses/`, `tests/businesses.test.ts` |
 | A salon whose booking page shows no times, and nobody knows why | The dashboard checks the three things that must line up (a service, someone who offers it, their hours) and shows the next missing step | `apps/web/src/dashboard/setup.ts` |
 | Abuse and brute-forcing | A Redis fixed-window rate limiter with stricter limits on login and sign-up | `middleware/rateLimit.ts` |
@@ -127,10 +129,10 @@ sequenceDiagram
 | Database | PostgreSQL 17, Prisma 6 |
 | Queue and rate limiting | Redis 7, BullMQ |
 | Email | Resend (printed to the console when no key is set) |
-| Validation, dates | Zod, Luxon |
+| Validation, dates | Zod 4, Luxon |
 | Logging | pino |
 | Web app | React 19, Vite, Tailwind 4, TanStack Query |
-| Tests | Vitest, Supertest (177 API tests against real Postgres and Redis, plus 81 web tests) |
+| Tests | Vitest, Supertest (193 API tests against real Postgres and Redis, plus 81 web tests) |
 | Packaging and CI | Docker, GitHub Actions |
 
 ## Getting started
@@ -165,6 +167,8 @@ Deploying it: see [docs/DEPLOY.md](docs/DEPLOY.md).
 
 `apps/web` is a React, Vite and Tailwind app that talks to the API. It has:
 
+- the **home page** (`/`): every salon that's ready to take bookings, with a search box that
+  matches a salon's name, its area or a service it offers;
 - the customer **booking page** (`/glow-salon`: pick a service, person, day and time, then confirm)
   and **My bookings** (`/me`, with cancel);
 - the owner **weekly calendar** (`/dashboard`): a week grid with one colour per staff member,
@@ -200,6 +204,7 @@ Customers and owners sign in with `POST /auth/login` and send `Authorization: Be
 
 | Who | Method and path | What it does |
 |---|---|---|
+| Anyone | `GET /b?q=` | Salons ready to take bookings, optionally searched by name, area or service |
 | Anyone | `GET /b/:slug` | The salon's public page: services and staff |
 | Anyone | `GET /b/:slug/availability?serviceId=&date=&staffId=` | Open start times for a day |
 | Customer | `POST /b/:slug/bookings` | Book a slot |
@@ -259,6 +264,9 @@ docs/brand/                       the logo, light and dark
 - [x] **Live:** deployed on Vercel, Render and Neon
 - [x] **Owner setup:** create a salon, services, staff, hours and time off, the setup checklist,
   and bookings that keep the price they were made at
+- [x] **Hardening:** the booking deadlock fix, zod 4 for a security advisory, and the database
+  moved to Neon before Render's free one expired
+- [x] **Discovery:** the home page lists every ready salon, with search
 
 Ideas for later: Google Calendar sync, Stripe deposits to reduce no-shows,
 a waitlist, and a Claude-powered "book by chat" assistant.
