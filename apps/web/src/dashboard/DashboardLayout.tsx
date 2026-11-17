@@ -137,6 +137,7 @@ export function DashboardLayout() {
               <TabLink to="calendar">Calendar</TabLink>
               <TabLink to="stats">Stats</TabLink>
               <TabLink to="services">Services</TabLink>
+              <TabLink to="staff">Staff</TabLink>
             </nav>
             <Outlet context={{ business } satisfies DashboardContext} />
           </div>

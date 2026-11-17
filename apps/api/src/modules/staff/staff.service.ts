@@ -1,7 +1,7 @@
 import { prisma } from "../../lib/db.js";
 import { badRequest, notFound } from "../../lib/errors.js";
 import { getOwnedBusiness } from "../businesses/businesses.service.js";
-import type { CreateStaffInput, SetStaffServicesInput } from "./staff.schema.js";
+import type { CreateStaffInput, SetStaffServicesInput, UpdateStaffInput } from "./staff.schema.js";
 
 // What we send back for a staff member: their own fields plus the services they offer.
 // The join table (staff_services) only holds ids, so we "include" the real service rows.
@@ -39,6 +39,21 @@ export async function listStaff(businessId: string, userId: string) {
   await getOwnedBusiness(businessId, userId);
   const rows = await prisma.staff.findMany({ where: { businessId }, select: staffWithServices, orderBy: { name: "asc" } });
   return rows.map(present);
+}
+
+export async function updateStaff(businessId: string, staffId: string, userId: string, input: UpdateStaffInput) {
+  await getOwnedStaff(businessId, staffId, userId);
+  const row = await prisma.staff.update({ where: { id: staffId }, data: input, select: staffWithServices });
+  return present(row);
+}
+
+// "Soft delete", like services: past and upcoming bookings still point at this person,
+// so we hide them instead. Availability and the public page skip inactive staff, so no
+// new bookings can be made with them. Bookings already made are left for the owner to
+// handle (they show in the calendar as before).
+export async function hideStaff(businessId: string, staffId: string, userId: string) {
+  await getOwnedStaff(businessId, staffId, userId);
+  await prisma.staff.update({ where: { id: staffId }, data: { active: false } });
 }
 
 // Replaces the whole list of services a staff member offers.

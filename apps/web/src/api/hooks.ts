@@ -1,7 +1,8 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthProvider";
 import { api } from "./client";
-import type { Availability, Booking, Calendar, CreateBookingInput, OwnedBusiness, OwnerBooking, OwnerService, OwnerStatusChange, PublicBusiness, ServiceInput, StaffMember, Stats } from "./types";
+import type { Availability, Booking, Calendar, CreateBookingInput, OwnedBusiness, OwnerBooking, OwnerService, OwnerStatusChange, PublicBusiness, ServiceInput, StaffMember, Stats, TimeOff } from "./types";
+import type { HoursBlock } from "../dashboard/hours";
 
 // ─── Data hooks ──────────────────────────────────────────────────────────────
 // TanStack Query keeps a cache of everything we load. That gives us, with no extra
@@ -151,6 +152,101 @@ export function useStaff(businessId: string) {
     queryKey: ["staff", businessId],
     staleTime: 60_000,
     queryFn: async () => (await api<{ staff: StaffMember[] }>(`/businesses/${businessId}/staff`)).staff,
+  });
+}
+
+// ─── Staff (owner) ───────────────────────────────────────────────────────────
+// Changing who works, what they offer, their hours or their time off all change which
+// times customers can book. So after each one we also mark the public booking page and
+// every availability answer as stale.
+// ──────────────────────────────────────────────────────────────────────────────
+function useRefreshAfterStaffChange(businessId: string) {
+  const queryClient = useQueryClient();
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: ["staff", businessId] });
+    void queryClient.invalidateQueries({ queryKey: ["business"] });
+    void queryClient.invalidateQueries({ queryKey: ["availability"] });
+  };
+}
+
+const staffUrl = (businessId: string, staffId: string) => `/businesses/${businessId}/staff/${staffId}`;
+
+export function useAddStaff(businessId: string) {
+  const refresh = useRefreshAfterStaffChange(businessId);
+  return useMutation({
+    mutationFn: async (name: string) => (await api<{ staff: StaffMember }>(`/businesses/${businessId}/staff`, { method: "POST", body: { name } })).staff,
+    onSuccess: refresh,
+  });
+}
+
+/** Rename someone, or hide / show them (active: false is a DELETE in the API). */
+export function useUpdateStaff(businessId: string) {
+  const refresh = useRefreshAfterStaffChange(businessId);
+  return useMutation({
+    mutationFn: async ({ id, name, active }: { id: string; name?: string; active?: boolean }) =>
+      active === false
+        ? api(staffUrl(businessId, id), { method: "DELETE" })
+        : api(staffUrl(businessId, id), { method: "PATCH", body: { name, active } }),
+    onSuccess: refresh,
+  });
+}
+
+export function useSetStaffServices(businessId: string, staffId: string) {
+  const refresh = useRefreshAfterStaffChange(businessId);
+  return useMutation({
+    mutationFn: async (serviceIds: string[]) => (await api<{ staff: StaffMember }>(`${staffUrl(businessId, staffId)}/services`, { method: "PUT", body: { serviceIds } })).staff,
+    onSuccess: refresh,
+  });
+}
+
+export function useWorkingHours(businessId: string, staffId: string) {
+  return useQuery({
+    queryKey: ["hours", staffId],
+    queryFn: async () => (await api<{ hours: HoursBlock[] }>(`${staffUrl(businessId, staffId)}/working-hours`)).hours,
+  });
+}
+
+export function useSetWorkingHours(businessId: string, staffId: string) {
+  const queryClient = useQueryClient();
+  const refresh = useRefreshAfterStaffChange(businessId);
+  return useMutation({
+    mutationFn: async (hours: HoursBlock[]) => (await api<{ hours: HoursBlock[] }>(`${staffUrl(businessId, staffId)}/working-hours`, { method: "PUT", body: { hours } })).hours,
+    onSuccess: (hours) => {
+      queryClient.setQueryData(["hours", staffId], hours); // the API answers with the saved week
+      refresh();
+    },
+  });
+}
+
+export function useTimeOff(businessId: string, staffId: string) {
+  return useQuery({
+    queryKey: ["time-off", staffId],
+    queryFn: async () => (await api<{ timeOff: TimeOff[] }>(`${staffUrl(businessId, staffId)}/time-off`)).timeOff,
+  });
+}
+
+export function useAddTimeOff(businessId: string, staffId: string) {
+  const queryClient = useQueryClient();
+  const refresh = useRefreshAfterStaffChange(businessId);
+  return useMutation({
+    mutationFn: async (input: { startsAt: string; endsAt: string; reason?: string }) =>
+      (await api<{ timeOff: TimeOff }>(`${staffUrl(businessId, staffId)}/time-off`, { method: "POST", body: input })).timeOff,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["time-off", staffId] });
+      refresh();
+    },
+  });
+}
+
+export function useDeleteTimeOff(businessId: string, staffId: string) {
+  const queryClient = useQueryClient();
+  const refresh = useRefreshAfterStaffChange(businessId);
+  return useMutation({
+    mutationFn: async (timeOffId: string) => api(`${staffUrl(businessId, staffId)}/time-off/${timeOffId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["time-off", staffId] });
+      refresh();
+    },
   });
 }
 

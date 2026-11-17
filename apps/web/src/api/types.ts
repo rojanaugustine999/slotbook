@@ -85,6 +85,13 @@ export interface ServiceInput {
   priceCents: number;
 }
 
+export interface TimeOff {
+  id: string;
+  startsAt: string; // exact moments, in UTC
+  endsAt: string;
+  reason: string | null;
+}
+
 export interface StaffMember {
   id: string;
   name: string;
