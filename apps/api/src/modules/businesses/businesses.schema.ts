@@ -25,6 +25,11 @@ export const createBusinessSchema = z.object({
     .refine((slug) => !RESERVED_SLUGS.has(slug), "this address is used by SlotBook itself; please choose another"),
   timezone: z.string().refine((tz) => IANAZone.isValidZone(tz), "must be an IANA timezone like Asia/Kolkata"),
   address: z.string().trim().max(300).optional(),
+  // Deposits: the percentage of a service's price paid when booking. null turns deposits off.
+  // (The database checks the same 1-100 range, as a second line of defence.)
+  depositPercent: z.number().int().min(1).max(100).nullable().optional(),
+  // Cancel at least this many hours before the start to get the deposit back (up to 30 days).
+  freeCancelHours: z.number().int().min(0).max(720).optional(),
   minNoticeMinutes: z.number().int().min(0).max(7 * 24 * 60).optional(),
   maxAdvanceDays: z.number().int().min(1).max(365).optional(),
 });

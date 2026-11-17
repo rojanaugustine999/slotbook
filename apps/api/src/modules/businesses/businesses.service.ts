@@ -108,6 +108,9 @@ export async function getPublicBusiness(slug: string) {
       slug: true,
       timezone: true,
       address: true,
+      // Customers see the deposit and the cancellation rule before they book.
+      depositPercent: true,
+      freeCancelHours: true,
       services: {
         where: { active: true },
         select: { id: true, name: true, durationMin: true, priceCents: true },
