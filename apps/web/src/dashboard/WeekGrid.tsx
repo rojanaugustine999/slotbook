@@ -72,6 +72,10 @@ export function WeekGrid({ days, timezone, today, now, staffIndex, onSelect }: P
                 const height = Math.max(((endMin - startMin) / 60) * HOUR_PX, 26);
                 const slot = staffIndex.get(booking.staff.id) ?? 0;
                 const cancelled = booking.status === "cancelled";
+                // Two lines need about 40px. A short booking (a 20-minute beard trim is 26px tall)
+                // gets one line, name then time, instead of a second line cut in half.
+                const oneLine = height < 40;
+                const time = formatTimeOf(booking.startsAt, timezone).replace(" ", "");
                 return (
                   <button
                     key={booking.id}
@@ -93,12 +97,15 @@ export function WeekGrid({ days, timezone, today, now, staffIndex, onSelect }: P
                       )}
                       {/* Two bookings sharing a column leave each only about 65px, so show less: a first name and the time. */}
                       <span className="truncate">{lanes > 1 ? booking.customer.name.split(" ")[0] : booking.customer.name}</span>
+                      {oneLine && <span className={cn("shrink-0 font-normal", cancelled ? "text-ink-3" : "text-ink-2")}>{time}</span>}
                     </span>
-                    <span className={cn("block truncate", cancelled ? "text-ink-3" : "text-ink-2")}>
-                      {formatTimeOf(booking.startsAt, timezone).replace(" ", "")}
-                      {lanes === 1 && ` · ${booking.service.name}`}
-                      {lanes === 1 && booking.status === "no_show" && " · no-show"}
-                    </span>
+                    {!oneLine && (
+                      <span className={cn("block truncate", cancelled ? "text-ink-3" : "text-ink-2")}>
+                        {time}
+                        {lanes === 1 && ` · ${booking.service.name}`}
+                        {lanes === 1 && booking.status === "no_show" && " · no-show"}
+                      </span>
+                    )}
                   </button>
                 );
               })}
