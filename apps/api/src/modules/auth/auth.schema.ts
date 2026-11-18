@@ -1,20 +1,8 @@
 import { z } from "zod";
 
-export const registerSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
-  // bcrypt only uses the first 72 bytes of a password, so cap it there.
-  password: z.string().min(8, "at least 8 characters").max(72),
-  name: z.string().trim().min(1).max(100),
-  phone: z.string().trim().max(20).optional(),
-});
-
-export const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
-  password: z.string().min(1),
-});
-
 // A phone as people type it: digits, spaces, dashes, brackets, an optional leading +.
 // An empty box means "no phone" (null), so a number can be removed again.
+// Shared by sign-up and the Account page, so both accept exactly the same numbers.
 const phone = z.preprocess(
   (value) => (typeof value === "string" && value.trim() === "" ? null : value),
   z
@@ -23,6 +11,20 @@ const phone = z.preprocess(
     .regex(/^\+?[0-9 ()-]{6,20}$/, "use digits, like +91 98765 43210")
     .nullable(),
 );
+
+export const registerSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  // bcrypt only uses the first 72 bytes of a password, so cap it there.
+  password: z.string().min(8, "at least 8 characters").max(72),
+  name: z.string().trim().min(1).max(100),
+  // Optional on purpose: salon owners sign up here too, and a forced box collects fake numbers.
+  phone: phone.optional(),
+});
+
+export const loginSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  password: z.string().min(1),
+});
 
 // Your own details. Email is deliberately NOT here: changing it safely needs a confirmation
 // link sent to the new address, and SlotBook doesn't send real emails.

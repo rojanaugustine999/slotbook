@@ -24,6 +24,28 @@ async function device(signUp = false) {
   return { agent, auth: { Authorization: `Bearer ${res.body.accessToken}` } };
 }
 
+describe("a phone number at sign-up", () => {
+  const signUp = (phone?: string) => request(app).post("/auth/register").send({ email: EMAIL, password: PASSWORD, name: "Asha Menon", phone });
+
+  it("is saved when given", async () => {
+    const res = await signUp("+91 98765 43210");
+    expect(res.status).toBe(201);
+    expect(res.body.user.phone).toBe("+91 98765 43210");
+  });
+
+  it("is optional: left out or left empty, there's simply no phone", async () => {
+    expect((await signUp()).body.user.phone).toBeNull();
+    await resetDb();
+    expect((await signUp("  ")).body.user.phone).toBeNull();
+  });
+
+  it("follows the same rule as the Account page", async () => {
+    const res = await signUp("not a number");
+    expect(res.status).toBe(400);
+    expect(res.body.error.details.phone).toBeDefined(); // shown under the phone box
+  });
+});
+
 describe("PATCH /auth/me", () => {
   it("updates your name and phone", async () => {
     const me = await device(true);

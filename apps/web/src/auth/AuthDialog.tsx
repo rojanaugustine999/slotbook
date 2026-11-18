@@ -32,18 +32,21 @@ export function AuthDialogProvider({ children }: { children: ReactNode }) {
     <AuthDialogContext.Provider value={open}>
       {children}
       <Dialog open={options !== null} onClose={close} title={options?.mode === "signUp" ? "Create your account" : "Sign in"}>
-        {options && <AuthForm key={options.mode ?? "signIn"} options={options} onDone={close} />}
+        {/* The mode lives here, in one place, so the title and the form always agree. */}
+        {options && <AuthForm options={options} onDone={close} onModeChange={(mode) => setOptions({ ...options, mode })} />}
       </Dialog>
     </AuthDialogContext.Provider>
   );
 }
 
-function AuthForm({ options, onDone }: { options: OpenOptions; onDone: () => void }) {
+function AuthForm({ options, onDone, onModeChange }: { options: OpenOptions; onDone: () => void; onModeChange: (mode: "signIn" | "signUp") => void }) {
   const { signIn, signUp } = useAuth();
-  const [mode, setMode] = useState(options.mode ?? "signIn");
+  const mode = options.mode ?? "signIn";
+  const setMode = onModeChange;
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
@@ -57,7 +60,7 @@ function AuthForm({ options, onDone }: { options: OpenOptions; onDone: () => voi
       setError(null);
       setFieldErrors({});
       try {
-        if (creating) await signUp({ name, email, password });
+        if (creating) await signUp({ name, email, password, phone });
         else await signIn(email, password);
         onDone();
         options.onSuccess?.();
@@ -70,7 +73,7 @@ function AuthForm({ options, onDone }: { options: OpenOptions; onDone: () => voi
         setBusy(false);
       }
     },
-    [creating, name, email, password, signIn, signUp, onDone, options],
+    [creating, name, email, password, phone, signIn, signUp, onDone, options],
   );
 
   return (
@@ -90,6 +93,20 @@ function AuthForm({ options, onDone }: { options: OpenOptions; onDone: () => voi
         placeholder={creating ? "At least 8 characters" : undefined}
         required
       />
+      {/* Optional on purpose (owners sign up here too), but the reason is given so customers add it. */}
+      {creating && (
+        <Field
+          label="Phone (optional)"
+          type="tel"
+          autoComplete="tel"
+          inputMode="tel"
+          placeholder="+91 98765 43210"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          error={fieldErrors.phone?.[0]}
+          hint="So a salon can reach you about your booking, for example if you're running late."
+        />
+      )}
 
       <Button type="submit" variant="primary" block loading={busy}>
         {creating ? "Create account" : "Sign in"}

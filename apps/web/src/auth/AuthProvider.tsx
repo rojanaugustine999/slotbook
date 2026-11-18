@@ -9,7 +9,7 @@ interface AuthValue {
   status: Status;
   user: User | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (input: { name: string; email: string; password: string }) => Promise<void>;
+  signUp: (input: { name: string; email: string; password: string; phone?: string }) => Promise<void>;
   signOut: () => Promise<void>;
   /** Replaces the signed-in user after they edit their own details (Account page). */
   updateUser: (user: User) => void;
@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signUp = useCallback(
-    async (input: { name: string; email: string; password: string }) => {
+    async (input: { name: string; email: string; password: string; phone?: string }) => {
       finish(await api<{ user: User; accessToken: string }>("/auth/register", { method: "POST", body: input, auth: false }));
     },
     [finish],
