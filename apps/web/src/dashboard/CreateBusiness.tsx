@@ -3,53 +3,10 @@ import { Link, useNavigate } from "react-router";
 import { ApiError, describeError } from "../api/client";
 import { useCreateBusiness } from "../api/hooks";
 import { slugify, slugProblem } from "../lib/slug";
+import { allTimezones, browserTimezone, fieldErrorsFrom, type Errors } from "./salonForm";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { Notice } from "../ui/Notice";
-
-// ─── Timezones ───────────────────────────────────────────────────────────────
-// Working hours are stored as "minutes after midnight in the salon's timezone", so the
-// timezone decides what "9:00" means. We guess it from the owner's browser, which is
-// right for almost everyone, and let them change it.
-// Some browsers still use old names for a few zones (Chrome says "Asia/Calcutta").
-// They work, but owners expect the current name, so we swap the common ones.
-// ──────────────────────────────────────────────────────────────────────────────
-const RENAMED_ZONES: Record<string, string> = {
-  "Asia/Calcutta": "Asia/Kolkata",
-  "Asia/Katmandu": "Asia/Kathmandu",
-  "Asia/Saigon": "Asia/Ho_Chi_Minh",
-  "Asia/Rangoon": "Asia/Yangon",
-  "Europe/Kiev": "Europe/Kyiv",
-};
-const currentName = (zone: string) => RENAMED_ZONES[zone] ?? zone;
-
-function browserTimezone(): string {
-  return currentName(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
-}
-
-function allTimezones(selected: string): string[] {
-  // Older browsers lack supportedValuesOf; then the list is just the guess.
-  const list = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone").map(currentName) : [];
-  return [...new Set([selected, ...list])].sort();
-}
-
-type Fields = "name" | "slug" | "timezone" | "address";
-type Errors = Partial<Record<Fields, string>>;
-
-// The API sends field problems as { slug: ["..."], ... }. Turn its wording into a sentence.
-function fieldErrorsFrom(error: unknown): Errors | null {
-  if (!(error instanceof ApiError)) return null;
-  if (error.code === "SLUG_TAKEN") return { slug: error.message };
-  if (error.code === "VALIDATION_ERROR" && error.details) {
-    const errors: Errors = {};
-    for (const [field, messages] of Object.entries(error.details)) {
-      const first = messages[0];
-      if (first) errors[field as Fields] = first.charAt(0).toUpperCase() + first.slice(1);
-    }
-    return errors;
-  }
-  return null;
-}
 
 /**
  * "Set up your salon". Shown to a signed-in person with no salon yet, and at /dashboard/new

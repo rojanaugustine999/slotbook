@@ -138,6 +138,8 @@ export interface OwnedBusiness {
   slug: string;
   timezone: string;
   address: string | null;
+  minNoticeMinutes?: number; // no bookings closer than this to now
+  maxAdvanceDays?: number; // no bookings further ahead than this
   suspendedAt?: string | null; // set by SlotBook: hidden, no new bookings
   suspendedReason?: string | null; // why, shown to the owner
 }

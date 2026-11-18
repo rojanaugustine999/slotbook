@@ -142,6 +142,24 @@ export function useCreateBusiness() {
   });
 }
 
+/**
+ * Saves some of a salon's settings (only the fields given). The answer is the whole salon,
+ * which replaces it in the owner's list, so the dashboard header shows the new name at once.
+ */
+export function useUpdateBusiness(businessId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Partial<Pick<OwnedBusiness, "name" | "address" | "slug" | "timezone" | "minNoticeMinutes" | "maxAdvanceDays">>) =>
+      (await api<{ business: OwnedBusiness }>(`/businesses/${businessId}`, { method: "PATCH", body: input })).business,
+    onSuccess: (business) => {
+      queryClient.setQueryData<OwnedBusiness[]>(["my-businesses"], (old) => old?.map((b) => (b.id === business.id ? business : b)));
+      void queryClient.invalidateQueries({ queryKey: ["my-businesses"] });
+      void queryClient.invalidateQueries({ queryKey: ["business"] }); // the public page and the home list
+      void queryClient.invalidateQueries({ queryKey: ["availability"] }); // notice and advance limits change the open times
+    },
+  });
+}
+
 // ─── Services (owner) ────────────────────────────────────────────────────────
 // After any change, three caches are out of date: this list, the staff list (it shows
 // service names), and the public booking page. Invalidating marks them stale, so they

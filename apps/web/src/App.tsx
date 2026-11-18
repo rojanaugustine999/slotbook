@@ -6,6 +6,7 @@ import { ServicesPage } from "./dashboard/ServicesPage";
 import { StaffMemberPage } from "./dashboard/StaffMemberPage";
 import { StaffPage } from "./dashboard/StaffPage";
 import { PaymentsPage } from "./dashboard/PaymentsPage";
+import { SettingsPage } from "./dashboard/SettingsPage";
 import { StatsPage } from "./dashboard/StatsPage";
 import { Layout } from "./Layout";
 import { Home, NotFound } from "./pages/Home";
@@ -31,6 +32,7 @@ export function App() {
           <Route path="staff" element={<StaffPage />} />
           <Route path="staff/:staffId" element={<StaffMemberPage />} />
           <Route path="payments" element={<PaymentsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path=":slug" element={<BookingPage />} />
         <Route path="*" element={<NotFound />} />
