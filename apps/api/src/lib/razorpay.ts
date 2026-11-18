@@ -28,19 +28,40 @@ export function paymentsConfigured(): boolean {
 // (vi.spyOn(razorpay, "createOrder")) and never call the real Razorpay.
 export const razorpay = {
   async createOrder(input: { amountCents: number; receipt: string; notes?: Record<string, string> }): Promise<RazorpayOrder> {
-    const res = await fetch("https://api.razorpay.com/v1/orders", {
-      method: "POST",
-      headers: {
-        // Basic auth: "key id:secret", base64. Sent only from the server, over HTTPS.
-        Authorization: "Basic " + Buffer.from(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`).toString("base64"),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ amount: input.amountCents, currency: "INR", receipt: input.receipt, notes: input.notes }),
-    });
-    if (!res.ok) throw new Error(`Razorpay answered ${res.status} when creating an order`);
-    return (await res.json()) as RazorpayOrder;
+    return call<RazorpayOrder>("POST", "/orders", { amount: input.amountCents, currency: "INR", receipt: input.receipt, notes: input.notes });
+  },
+
+  /** Sends money back for a payment. notes.refundId is OUR refund id, used to spot repeats. */
+  async refundPayment(paymentId: string, input: { amountCents: number; notes: { refundId: string } }): Promise<RazorpayRefund> {
+    return call<RazorpayRefund>("POST", `/payments/${encodeURIComponent(paymentId)}/refund`, { amount: input.amountCents, notes: input.notes });
+  },
+
+  /** The refunds Razorpay already has for a payment (to check before trying again). */
+  async listRefunds(paymentId: string): Promise<RazorpayRefund[]> {
+    return (await call<{ items: RazorpayRefund[] }>("GET", `/payments/${encodeURIComponent(paymentId)}/refunds`)).items;
   },
 };
+
+export interface RazorpayRefund {
+  id: string; // "rfnd_..."
+  amount: number;
+  status: "pending" | "processed" | "failed";
+  notes?: Record<string, string> | [];
+}
+
+async function call<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`https://api.razorpay.com/v1${path}`, {
+    method,
+    headers: {
+      // Basic auth: "key id:secret", base64. Sent only from the server, over HTTPS.
+      Authorization: "Basic " + Buffer.from(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`).toString("base64"),
+      "Content-Type": "application/json",
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Razorpay answered ${res.status} to ${method} ${path.split("/")[1]}`);
+  return (await res.json()) as T;
+}
 
 /**
  * Checks the signature Razorpay Checkout returns after a successful payment.

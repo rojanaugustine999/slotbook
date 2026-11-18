@@ -95,6 +95,7 @@ function BookingCard({ booking, canCancel }: { booking: Booking; canCancel?: boo
       <p className="mt-2 text-sm text-ink-2">
         {booking.business.name} · with {booking.staff.name} · {formatPrice(booking.priceCents)}
         {booking.payment?.status === "paid" && ` · ${formatPrice(booking.payment.amountCents)} deposit paid`}
+        {booking.payment?.status === "refunded" && ` · ${formatPrice(booking.payment.amountCents)} deposit refunded`}
       </p>
 
       {canCancel && <DepositDue booking={booking} />}
@@ -111,6 +112,14 @@ function BookingCard({ booking, canCancel }: { booking: Booking; canCancel?: boo
         <p className="text-[15px] text-ink-2">
           {booking.service.name} on {formatWhen(booking.startsAt, booking.business.timezone)}. The time will be released for others, and we'll email you to confirm.
         </p>
+        {booking.payment?.status === "paid" && (
+          // Shown before they confirm, so nobody loses a deposit by surprise.
+          <p className="mt-3 text-[15px]">
+            {refundsOnCancel(booking)
+              ? `Your ${formatPrice(booking.payment.amountCents)} deposit will be refunded.`
+              : `It's less than ${booking.business.freeCancelHours} hours before your appointment, so the ${formatPrice(booking.payment.amountCents)} deposit won't be refunded.`}
+          </p>
+        )}
         {cancel.isError && <Notice tone="error" className="mt-4">{describeError(cancel.error)}</Notice>}
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button onClick={() => setConfirming(false)}>Keep booking</Button>
@@ -147,4 +156,11 @@ function DepositDue({ booking }: { booking: Booking }) {
       </Button>
     </div>
   );
+}
+
+// The same rule as depositOutcome in the API (payments.rules.ts), only to WARN in advance.
+// The server decides for real when the cancel arrives, with its own clock.
+function refundsOnCancel(booking: Booking, now = Date.now()): boolean {
+  const hoursAhead = (new Date(booking.startsAt).getTime() - now) / 3_600_000;
+  return hoursAhead >= booking.business.freeCancelHours;
 }

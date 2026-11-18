@@ -283,6 +283,10 @@ model LedgerEntry {
   refund   Refund?  @relation(fields: [refundId], references: [id])
   payout   Payout?  @relation(fields: [payoutId], references: [id])
 
+  // At most ONE deposit, ONE commission and ONE refund row per payment, enforced by the
+  // database: however often a cancel, a retry or a webhook runs, money is counted once.
+  // (Payout rows have no paymentId, and Postgres treats NULLs as distinct, so they're unaffected.)
+  @@unique([paymentId, type])
   @@index([businessId, createdAt])
   @@map("ledger_entries")
 }

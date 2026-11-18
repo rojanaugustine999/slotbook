@@ -66,7 +66,7 @@ export interface Booking {
   notes: string | null;
   service: { id: string; name: string; durationMin: number; priceCents: number };
   staff: { id: string; name: string };
-  business: { name: string; slug: string; timezone: string };
+  business: { name: string; slug: string; timezone: string; freeCancelHours: number };
   holdExpiresAt: string | null; // set while the slot is held for an unpaid deposit
   payment: { amountCents: number; currency: string; status: PaymentStatus } | null;
 }

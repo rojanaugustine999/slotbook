@@ -138,7 +138,7 @@ describe("POST /webhooks/razorpay", () => {
     expect(await prisma.ledgerEntry.count()).toBe(1);
   });
 
-  it("records a payment that arrives after the hold was released (refunded in part 4)", async () => {
+  it("records a payment that arrives after the hold was released, then refunds it", async () => {
     const { bookingId, payment } = await heldBooking();
     await prisma.booking.update({ where: { id: bookingId }, data: { holdExpiresAt: new Date(Date.now() - 1000) } });
     await processHoldRelease(bookingId);
@@ -147,7 +147,7 @@ describe("POST /webhooks/razorpay", () => {
 
     expect(res.status).toBe(200); // never an error to Razorpay, or it would retry forever
     expect(await bookingStatus(bookingId)).toBe("cancelled");
-    expect((await prisma.payment.findUniqueOrThrow({ where: { bookingId } })).status).toBe("paid");
+    expect((await prisma.payment.findUniqueOrThrow({ where: { bookingId } })).status).toBe("refunded");
   });
 
   it("ignores a payment for the wrong amount", async () => {

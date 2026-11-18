@@ -180,7 +180,7 @@ describe("POST /me/bookings/:id/pay", () => {
     expect(paid.body.booking.status).toBe("confirmed");
   });
 
-  it("answers HOLD_EXPIRED when the hold was already released, but keeps the money on record", async () => {
+  it("answers HOLD_EXPIRED when the hold was already released, and refunds the money", async () => {
     const { salon, priya } = await depositSalon();
     const { customer, res } = await book(salon, priya);
     await prisma.booking.update({ where: { id: res.body.booking.id }, data: { holdExpiresAt: new Date(Date.now() - 60_000) } });
@@ -190,9 +190,9 @@ describe("POST /me/bookings/:id/pay", () => {
 
     expect(paid.status).toBe(409);
     expect(paid.body.error.code).toBe("HOLD_EXPIRED");
-    // The money did arrive, so it's recorded (part 4 refunds it).
-    expect((await prisma.payment.findUniqueOrThrow({ where: { bookingId: res.body.booking.id } })).status).toBe("paid");
-    expect(await prisma.ledgerEntry.count()).toBe(1);
+    // The money did arrive: it is recorded, then refunded (deposit row + refund row).
+    expect((await prisma.payment.findUniqueOrThrow({ where: { bookingId: res.body.booking.id } })).status).toBe("refunded");
+    expect(await prisma.ledgerEntry.count()).toBe(2);
   });
 });
 

@@ -16,6 +16,7 @@ import {
   releaseExpiredHolds,
   scheduleHoldRelease,
 } from "../payments/payments.service.js";
+import { settleDeposit } from "../payments/payments.refunds.js";
 import { checkStatusChange } from "./bookings.rules.js";
 import type { CreateBookingInput, OwnerBookingsQuery, RescheduleBookingInput } from "./bookings.schema.js";
 
@@ -33,7 +34,7 @@ const bookingFields = {
   payment: { select: { amountCents: true, currency: true, status: true } },
   service: { select: { id: true, name: true, durationMin: true, priceCents: true } },
   staff: { select: { id: true, name: true } },
-  business: { select: { name: true, slug: true, timezone: true } },
+  business: { select: { name: true, slug: true, timezone: true, freeCancelHours: true } },
 } as const;
 
 // Owners also need to know who the customer is.
@@ -252,7 +253,7 @@ async function getMyChangeableBooking(customerId: string, bookingId: string) {
   // a booking that doesn't exist: 404 either way, nothing leaks.
   const booking = await prisma.booking.findFirst({
     where: { id: bookingId, customerId },
-    include: { business: { select: { slug: true, timezone: true } }, service: { select: { durationMin: true, bufferMin: true } } },
+    include: { business: { select: { slug: true, timezone: true, freeCancelHours: true } }, service: { select: { durationMin: true, bufferMin: true } } },
   });
   if (!booking) throw notFound("Booking not found");
 
@@ -284,10 +285,13 @@ export async function cancelMyBooking(customerId: string, bookingId: string) {
   // A held booking given up before paying: its order can never be paid now.
   await closeUnpaidPayments(prisma, [booking.id]);
   await runSafely("cancel hold release", () => cancelHoldRelease(booking.id));
+  // A paid deposit: refunded if cancelled early enough, otherwise the salon keeps it.
+  const deposit = await settleDeposit(booking.id, { kind: "customer_cancelled", startsAt: booking.startsAt, now: new Date(), freeCancelHours: booking.business.freeCancelHours });
 
   // Stop the reminders, and tell the customer it's cancelled.
   await runSafely("cancel reminders", () => cancelForBooking(booking.id, { notifyCustomer: true }));
-  return cancelled;
+  // Read again only if the deposit changed, so the answer shows "refunded".
+  return deposit === "refund" ? prisma.booking.findUniqueOrThrow({ where: { id: booking.id }, select: bookingFields }) : cancelled;
 }
 
 // Moves a booking to a new time (and optionally a different staff member).
@@ -418,6 +422,11 @@ export async function changeBookingStatus(businessId: string, bookingId: string,
 
   // The owner cancelled it: same as a customer cancelling. (completed and no_show
   // happen after the start, so no reminders are left to stop.)
+  // What happens to a paid deposit: the salon cancelling refunds it; completed or no-show keeps it.
+  const depositEvent = to === "cancelled" ? "salon_cancelled" : to === "completed" ? "completed" : to === "no_show" ? "no_show" : null;
+  const deposit = depositEvent ? await settleDeposit(booking.id, { kind: depositEvent }) : null;
+  if (deposit === "refund") updated = await prisma.booking.findUniqueOrThrow({ where: { id: booking.id }, select: ownerBookingFields });
+
   if (to === "cancelled") {
     await closeUnpaidPayments(prisma, [booking.id]);
     await runSafely("cancel hold release", () => cancelHoldRelease(booking.id));

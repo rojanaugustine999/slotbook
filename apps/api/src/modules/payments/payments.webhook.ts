@@ -3,10 +3,11 @@ import { env } from "../../lib/env.js";
 import { HttpError } from "../../lib/errors.js";
 import { logger } from "../../lib/logger.js";
 import { verifyWebhookSignature } from "../../lib/razorpay.js";
+import { saveRazorpayAnswer } from "./payments.refunds.js";
 import { recordPayment } from "./payments.service.js";
 
 // ─── Razorpay webhooks ───────────────────────────────────────────────────────
-// Razorpay calls POST /webhooks/razorpay itself when something happens to a payment. This is
+// Razorpay calls POST /webhooks/razorpay itself when something happens to a payment or refund. This is
 // the safety net for "paid, then closed the tab": the browser never reports back, but
 // Razorpay still tells us, so the booking is confirmed anyway.
 //
@@ -23,7 +24,10 @@ const PAID_EVENTS = new Set(["payment.captured", "order.paid"]);
 
 interface RazorpayEvent {
   event: string;
-  payload?: { payment?: { entity?: { id?: string; order_id?: string; amount?: number; currency?: string } } };
+  payload?: {
+    payment?: { entity?: { id?: string; order_id?: string; amount?: number; currency?: string } };
+    refund?: { entity?: { id?: string; payment_id?: string; notes?: Record<string, string> | [] } };
+  };
 }
 
 export type WebhookOutcome = "recorded" | "already-handled" | "duplicate-event" | "ignored";
@@ -46,6 +50,7 @@ export async function handleRazorpayWebhook(rawBody: Buffer, signature: string |
 }
 
 async function applyEvent(event: RazorpayEvent): Promise<WebhookOutcome> {
+  if (REFUND_EVENTS.has(event.event)) return applyRefundEvent(event);
   if (!PAID_EVENTS.has(event.event)) return "ignored";
 
   const entity = event.payload?.payment?.entity;
@@ -66,4 +71,27 @@ async function applyEvent(event: RazorpayEvent): Promise<WebhookOutcome> {
 
   const { firstTime } = await recordPayment(payment, entity.id);
   return firstTime ? "recorded" : "already-handled";
+}
+
+// A refund can stay "pending" at Razorpay for a while (in live mode the bank takes days).
+// These two events tell us how it ended.
+const REFUND_EVENTS = new Set(["refund.processed", "refund.failed"]);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function applyRefundEvent(event: RazorpayEvent): Promise<WebhookOutcome> {
+  const entity = event.payload?.refund?.entity;
+  if (!entity?.id) return "ignored";
+
+  // Usually we already saved Razorpay's refund id. If the event beat our job to it, our own
+  // refund id is in the notes we sent with the refund.
+  const ourId = !Array.isArray(entity.notes) ? entity.notes?.refundId : undefined;
+  const refund = await prisma.refund.findFirst({
+    where: { OR: [{ providerRefundId: entity.id }, ...(ourId && UUID.test(ourId) ? [{ id: ourId }] : [])] },
+    select: { id: true, status: true },
+  });
+  if (!refund) return "ignored"; // a refund made outside SlotBook (e.g. by hand in the dashboard)
+  if (refund.status !== "pending") return "already-handled";
+
+  await saveRazorpayAnswer(refund.id, { id: entity.id, status: event.event === "refund.processed" ? "processed" : "failed" });
+  return "recorded";
 }

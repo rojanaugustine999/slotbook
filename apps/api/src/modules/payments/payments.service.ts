@@ -5,6 +5,7 @@ import { HttpError, notFound } from "../../lib/errors.js";
 import { verifyPaymentSignature } from "../../lib/razorpay.js";
 import { getQueue } from "../notifications/notifications.queue.js";
 import { runSafely, scheduleForBooking } from "../notifications/notifications.service.js";
+import { settleDeposit } from "./payments.refunds.js";
 import type { ConfirmPaymentInput } from "./payments.schema.js";
 
 // ─── Deposits and holds ──────────────────────────────────────────────────────
@@ -89,7 +90,7 @@ export async function confirmDeposit(customerId: string, bookingId: string, inpu
   await recordPayment({ id: payment.id, businessId: payment.businessId, amountCents: payment.amountCents, bookingId }, input.razorpayPaymentId);
 
   const booking = await prisma.booking.findUniqueOrThrow({ where: { id: bookingId }, select: paidBookingFields });
-  // Paid, but the hold had been released. Part 4 refunds these automatically.
+  // Paid, but the hold had been released (recordPayment has already started the refund).
   if (booking.status !== "confirmed") throw holdExpired();
   return booking;
 }
@@ -115,7 +116,7 @@ export async function recordPayment(
     if (count === 0) return { firstTime: false, confirmed: false };
 
     // Money in: one append-only ledger row. Commission is recorded later, once the
-    // deposit can no longer be refunded (part 4).
+    // deposit can no longer be refunded (settleDeposit).
     await tx.ledgerEntry.create({
       data: { businessId: payment.businessId, type: "deposit", amountCents: payment.amountCents, paymentId: payment.id, note: "Booking deposit" },
     });
@@ -130,6 +131,8 @@ export async function recordPayment(
     await runSafely("cancel hold release", () => cancelHoldRelease(payment.bookingId));
     await runSafely("schedule reminders", () => scheduleForBooking(payment.bookingId));
   }
+  // The money arrived, but the slot had already been released: send it back.
+  if (result.firstTime && !result.confirmed) await settleDeposit(payment.bookingId, { kind: "hold_expired" });
   return result;
 }
 
