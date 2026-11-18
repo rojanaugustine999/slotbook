@@ -29,10 +29,10 @@ works. How it is deployed: [docs/DEPLOY.md](docs/DEPLOY.md).
 
 Taken from the running app, with fictional sample data. Everything follows the visitor's light or dark setting.
 
-**Customer booking page.** Built phone-first: choose a service, a person (or "anyone"), a day and a time. On a phone a confirm bar stays pinned to the bottom; on a desktop the summary sits beside the steps.
+**Customer booking page.** Built phone-first: choose a service, a person (or "anyone"), a day and a time. On a phone a confirm bar stays pinned to the bottom; on a desktop the summary sits beside the steps. When the salon takes a deposit, the summary splits the price into what's paid now and at the salon, and states the cancellation rule before anyone pays.
 
 <p align="center">
-  <img src="docs/screenshots/booking-desktop.png" alt="The booking page on a desktop: four services, a choice of staff, a day strip, open times grouped by morning, afternoon and evening, and a summary card with a Confirm booking button" width="480">
+  <img src="docs/screenshots/booking-desktop.png" alt="The booking page on a desktop: four services, a choice of staff, a day strip, open times grouped by morning, afternoon and evening, and a summary card showing a ₹500 total, ₹100 deposit now, ₹400 at the salon and a Pay ₹100 and book button" width="480">
   <img src="docs/screenshots/booking-mobile.png" alt="The booking page on a phone: day strip, grouped times and a pinned Confirm bar" width="215">
   <img src="docs/screenshots/booking-mobile-dark.png" alt="The same phone page in dark mode" width="215">
 </p>
@@ -58,8 +58,18 @@ Taken from the running app, with fictional sample data. Everything follows the v
 
 <img src="docs/screenshots/stats.png" alt="The stats dashboard: four number cards, a bookings-per-day bar chart, an outcomes breakdown and a top-services list" width="830">
 
+**Owner payments.** The salon sets its deposit and free-cancellation window (with a worked example from one of its own services), sees what SlotBook owes it, and every money movement behind that number: deposits, refunds, SlotBook's 10% commission on kept deposits, and payouts.
+
+<img src="docs/screenshots/payments.png" alt="The Payments tab: deposit settings at 20% with 24 hours free cancellation, cards for SlotBook owes you ₹740, deposits kept ₹1,080 and commission ₹34, and a list of deposits, a refund, commissions and a payout" width="830">
+
+**My bookings with deposits.** A paid booking shows its deposit; a held one shows when the hold ends and a button to pay; a booking cancelled in time shows the refund.
+
+<img src="docs/screenshots/my-bookings.png" alt="My bookings: a confirmed Facial with ₹240 deposit paid, a pending Haircut waiting for its ₹100 deposit with a Pay ₹100 deposit button, and a cancelled Hair Colour with ₹500 deposit refunded" width="830">
+
 <details>
 <summary>Dark mode</summary>
+
+<img src="docs/screenshots/payments-dark.png" alt="The Payments tab in dark mode" width="830">
 
 <img src="docs/screenshots/calendar-dark.png" alt="The weekly calendar in dark mode" width="830">
 
