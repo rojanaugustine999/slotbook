@@ -84,7 +84,8 @@ export async function processRefund(refundId: string): Promise<void> {
   if (!paymentId) throw new Error(`Refund ${refundId}: the payment has no Razorpay payment id`);
 
   // Already sent by an earlier try that failed before saving the answer? Then don't send again.
-  const existing = (await razorpay.listRefunds(paymentId)).find((r) => noteOf(r) === refund.id);
+  // (A refund Razorpay refused doesn't count: an admin retry must send a fresh one.)
+  const existing = (await razorpay.listRefunds(paymentId)).find((r) => noteOf(r) === refund.id && r.status !== "failed");
   const sent = existing ?? (await razorpay.refundPayment(paymentId, { amountCents: refund.amountCents, notes: { refundId: refund.id } }));
 
   await saveRazorpayAnswer(refund.id, sent);

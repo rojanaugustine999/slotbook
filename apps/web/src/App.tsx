@@ -8,6 +8,7 @@ import { StaffPage } from "./dashboard/StaffPage";
 import { StatsPage } from "./dashboard/StatsPage";
 import { Layout } from "./Layout";
 import { Home, NotFound } from "./pages/Home";
+import { AdminPage } from "./pages/AdminPage";
 import { MyBookings } from "./pages/MyBookings";
 
 // Fixed addresses (/me, /dashboard) are listed before the "/:slug" catch-all, so they win.
@@ -17,6 +18,7 @@ export function App() {
       <Route element={<Layout />}>
         <Route index element={<Home />} />
         <Route path="me" element={<MyBookings />} />
+        <Route path="admin" element={<AdminPage />} />
         <Route path="dashboard" element={<DashboardHome />} />
         <Route path="dashboard/new" element={<DashboardNew />} />
         <Route path="dashboard/:businessId" element={<DashboardLayout />}>

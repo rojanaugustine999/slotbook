@@ -60,6 +60,12 @@ export function Layout() {
                 <NavLink to="/me" className={({ isActive }) => cn("whitespace-nowrap rounded-control px-2.5 py-2 text-[15px] sm:px-3", isActive ? "bg-sunken font-medium" : "text-ink-2 hover:bg-sunken hover:text-ink")}>
                   My bookings
                 </NavLink>
+                {/* SlotBook staff only. Hiding the link is just tidiness: the API checks every admin request itself. */}
+                {user.isPlatformAdmin && (
+                  <NavLink to="/admin" className={({ isActive }) => cn("whitespace-nowrap rounded-control px-2.5 py-2 text-[15px] sm:px-3", isActive ? "bg-sunken font-medium" : "text-ink-2 hover:bg-sunken hover:text-ink")}>
+                    Admin
+                  </NavLink>
+                )}
                 <Button variant="ghost" className="h-10 px-2.5 sm:px-3" onClick={() => void signOut()}>
                   Sign out
                 </Button>

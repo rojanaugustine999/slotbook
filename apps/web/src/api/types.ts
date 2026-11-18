@@ -6,6 +6,37 @@ export interface User {
   email: string;
   name: string;
   phone: string | null;
+  isPlatformAdmin?: boolean; // SlotBook staff. Only decides whether the Admin link shows
+}
+
+// ── Super admin: /admin ─────────────────────────────────────────────────────
+export interface SalonBalance {
+  id: string;
+  name: string;
+  slug: string;
+  // Each ledger type added up, in paise: deposit is +, the rest are − (what reduces the balance).
+  totals: { deposit: number; commission: number; refund: number; payout: number };
+  balanceCents: number; // what SlotBook owes the salon now
+}
+
+export interface OpenRefund {
+  id: string;
+  amountCents: number;
+  status: "pending" | "failed";
+  reason: string | null;
+  providerRefundId: string | null;
+  createdAt: string;
+  payment: { business: { name: string; slug: string } };
+}
+
+export interface AuditEntry {
+  id: string;
+  action: string; // "payout.record", "refund.retry"
+  targetType: string;
+  targetId: string | null;
+  details: Record<string, unknown> | null;
+  createdAt: string;
+  actor: { name: string; email: string };
 }
 
 // ── Public salon page: GET /b/:slug ─────────────────────────────────────────

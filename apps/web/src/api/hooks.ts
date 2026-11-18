@@ -2,7 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useAuth } from "../auth/AuthProvider";
 import { payDeposit } from "../lib/razorpay";
 import { api } from "./client";
-import type { Availability, Booking, Calendar, CreateBookingInput, DepositCheckout, OwnedBusiness, OwnerBooking, OwnerService, OwnerStatusChange, PublicBusiness, PublicBusinessCard, RazorpayResult, ServiceInput, StaffMember, Stats, TimeOff } from "./types";
+import type { AuditEntry, Availability, Booking, Calendar, CreateBookingInput, DepositCheckout, OwnedBusiness, OwnerBooking, OwnerService, OpenRefund, OwnerStatusChange, PublicBusiness, PublicBusinessCard, RazorpayResult, SalonBalance, ServiceInput, StaffMember, Stats, TimeOff } from "./types";
 import type { HoursBlock } from "../dashboard/hours";
 
 // ─── Data hooks ──────────────────────────────────────────────────────────────
@@ -321,4 +321,35 @@ export function useStats(businessId: string, from: string, to: string, enabled =
     placeholderData: keepPreviousData, // while a new range loads, keep the old numbers on screen
     queryFn: async () => (await api<{ stats: Stats }>(`/businesses/${businessId}/stats?from=${from}&to=${to}`)).stats,
   });
+}
+
+// ─── Super admin hooks (/admin) ──────────────────────────────────────────────
+
+export function useAdminBalances() {
+  const { status } = useAuth();
+  return useQuery({ queryKey: ["admin", "balances"], enabled: status === "signedIn", queryFn: async () => (await api<{ balances: SalonBalance[] }>("/admin/balances")).balances });
+}
+
+export function useOpenRefunds() {
+  return useQuery({ queryKey: ["admin", "refunds"], queryFn: async () => (await api<{ refunds: OpenRefund[] }>("/admin/refunds")).refunds });
+}
+
+export function useAuditLog() {
+  return useQuery({ queryKey: ["admin", "audit"], queryFn: async () => (await api<{ entries: AuditEntry[] }>("/admin/audit")).entries });
+}
+
+// Every admin change can move balances, refunds and the audit log, so all three refresh.
+function useAdminMutation<TInput>(mutationFn: (input: TInput) => Promise<unknown>) {
+  const queryClient = useQueryClient();
+  return useMutation({ mutationFn, onSettled: () => void queryClient.invalidateQueries({ queryKey: ["admin"] }) });
+}
+
+export function useRecordPayout() {
+  return useAdminMutation(({ businessId, amountCents, reference }: { businessId: string; amountCents: number; reference?: string }) =>
+    api(`/admin/businesses/${businessId}/payouts`, { method: "POST", body: { amountCents, reference } }),
+  );
+}
+
+export function useRetryRefund() {
+  return useAdminMutation((refundId: string) => api(`/admin/refunds/${refundId}/retry`, { method: "POST" }));
 }

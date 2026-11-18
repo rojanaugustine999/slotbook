@@ -10,6 +10,7 @@ import { logger as defaultLogger } from "./lib/logger.js";
 import { requireAuth } from "./middleware/auth.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { limiters } from "./middleware/rateLimit.js";
+import { adminRouter } from "./modules/admin/admin.routes.js";
 import { availabilityRouter } from "./modules/availability/availability.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { bookingsRouter, meRouter, ownerBookingsRouter } from "./modules/bookings/bookings.routes.js";
@@ -112,6 +113,7 @@ export function createApp(options: AppOptions = {}) {
   app.use("/b", availabilityRouter); // adds /b/:slug/availability
   app.use("/b", bookingsRouter); // adds /b/:slug/bookings
   app.use("/me", meRouter); // adds /me/bookings
+  app.use("/admin", adminRouter); // SlotBook staff only (platform admins)
 
   // Order matters: these two must come after all routes.
   app.use(notFoundHandler);
