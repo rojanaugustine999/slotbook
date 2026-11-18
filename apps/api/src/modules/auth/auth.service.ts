@@ -3,8 +3,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "../../lib/db.js";
 import { env } from "../../lib/env.js";
-import { conflict, unauthorized } from "../../lib/errors.js";
-import type { LoginInput, RegisterInput } from "./auth.schema.js";
+import { conflict, HttpError, unauthorized } from "../../lib/errors.js";
+import type { ChangePasswordInput, LoginInput, RegisterInput, UpdateMeInput } from "./auth.schema.js";
 
 // ─── How auth works in SlotBook ──────────────────────────────────────────────
 // ACCESS token  : short-lived JWT (15 min). Sent as "Authorization: Bearer ...".
@@ -114,4 +114,43 @@ export async function logout(refreshToken: string | undefined) {
 
 export function getMe(userId: string) {
   return prisma.user.findUniqueOrThrow({ where: { id: userId }, select: publicUserSelect });
+}
+
+// ─── Your own account ────────────────────────────────────────────────────────
+
+export function updateMe(userId: string, input: UpdateMeInput) {
+  return prisma.user.update({ where: { id: userId }, data: input, select: publicUserSelect });
+}
+
+/**
+ * Changes the password, but only with the current one. Someone who picks up a signed-in
+ * phone has a session, not the password, so they can't lock the owner out.
+ * Afterwards every OTHER device is signed out: that's usually why people change a password.
+ */
+export async function changePassword(userId: string, currentRefreshToken: string | undefined, input: ChangePasswordInput) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { passwordHash: true } });
+  // 400, not 401: a 401 would make the web app think the SESSION expired and sign the person out.
+  if (!(await bcrypt.compare(input.currentPassword, user.passwordHash))) {
+    throw new HttpError(400, "WRONG_PASSWORD", "Your current password is incorrect");
+  }
+  if (input.newPassword === input.currentPassword) throw new HttpError(400, "SAME_PASSWORD", "Choose a password different from the current one");
+
+  await prisma.user.update({ where: { id: userId }, data: { passwordHash: await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS) } });
+  return signOutOtherDevices(userId, currentRefreshToken);
+}
+
+/**
+ * Ends every session except this browser's. Returns how many were ended.
+ *
+ * The other tokens are DELETED, not marked revoked. refresh() treats a revoked token coming
+ * back as theft and signs out every session, this one included; a deleted token is simply
+ * unknown, so that device just gets "please sign in" and nothing else is affected.
+ * (Their short-lived access tokens still work until they expire, at most ACCESS_TOKEN_TTL.)
+ */
+export async function signOutOtherDevices(userId: string, currentRefreshToken: string | undefined): Promise<number> {
+  const keep = currentRefreshToken ? sha256(currentRefreshToken) : undefined;
+  const { count } = await prisma.refreshToken.deleteMany({
+    where: { userId, revokedAt: null, ...(keep ? { tokenHash: { not: keep } } : {}) },
+  });
+  return count;
 }

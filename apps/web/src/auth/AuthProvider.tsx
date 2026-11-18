@@ -11,6 +11,8 @@ interface AuthValue {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (input: { name: string; email: string; password: string }) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Replaces the signed-in user after they edit their own details (Account page). */
+  updateUser: (user: User) => void;
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
@@ -75,7 +77,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [queryClient]);
 
-  const value = useMemo(() => ({ status, user, signIn, signUp, signOut }), [status, user, signIn, signUp, signOut]);
+  const updateUser = useCallback((next: User) => setUser(next), []);
+
+  const value = useMemo(() => ({ status, user, signIn, signUp, signOut, updateUser }), [status, user, signIn, signUp, signOut, updateUser]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

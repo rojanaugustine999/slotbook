@@ -9,6 +9,7 @@ import { PaymentsPage } from "./dashboard/PaymentsPage";
 import { StatsPage } from "./dashboard/StatsPage";
 import { Layout } from "./Layout";
 import { Home, NotFound } from "./pages/Home";
+import { AccountPage } from "./pages/AccountPage";
 import { AdminPage } from "./pages/AdminPage";
 import { MyBookings } from "./pages/MyBookings";
 
@@ -20,6 +21,7 @@ export function App() {
         <Route index element={<Home />} />
         <Route path="me" element={<MyBookings />} />
         <Route path="admin" element={<AdminPage />} />
+        <Route path="account" element={<AccountPage />} />
         <Route path="dashboard" element={<DashboardHome />} />
         <Route path="dashboard/new" element={<DashboardNew />} />
         <Route path="dashboard/:businessId" element={<DashboardLayout />}>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { describeError } from "../api/client";
 import { useCancelBooking, useMyBookings, usePayDeposit } from "../api/hooks";
-import type { Booking } from "../api/types";
+import type { Booking, User } from "../api/types";
 import { useAuthDialog } from "../auth/AuthDialog";
 import { useAuth } from "../auth/AuthProvider";
 import { formatTimeOf, formatWhen, isInFuture } from "../lib/dates";
@@ -15,7 +15,7 @@ import { WakingUp } from "../ui/WakingUp";
 import { StatusBadge } from "../ui/StatusBadge";
 
 export function MyBookings() {
-  const { status } = useAuth();
+  const { status, user } = useAuth();
   const openAuth = useAuthDialog();
   const bookings = useMyBookings();
 
@@ -42,6 +42,7 @@ export function MyBookings() {
   return (
     <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-medium">Your bookings</h1>
+      {user && <SharedDetails user={user} />}
 
       <section className="mt-6">
         <h2 className="mb-3 text-sm font-medium text-ink-2">Upcoming</h2>
@@ -163,4 +164,18 @@ function DepositDue({ booking }: { booking: Booking }) {
 function refundsOnCancel(booking: Booking, now = Date.now()): boolean {
   const hoursAhead = (new Date(booking.startsAt).getTime() - now) / 3_600_000;
   return hoursAhead >= booking.business.freeCancelHours;
+}
+
+// What a salon receives when you book: shown so nothing about it is a surprise, and so a
+// missing phone number is noticed (otherwise the salon just sees "Phone: Not given").
+function SharedDetails({ user }: { user: User }) {
+  return (
+    <p className="mt-1 text-sm text-ink-2">
+      Salons see you as <span className="font-medium text-ink">{user.name}</span> · {user.email} ·{" "}
+      {user.phone ?? <span className="text-warn">no phone number yet</span>}{" "}
+      <Link to="/account" className="whitespace-nowrap font-medium text-accent underline underline-offset-2">
+        {user.phone ? "Edit details" : "Add one"}
+      </Link>
+    </p>
+  );
 }

@@ -233,6 +233,9 @@ Customers and owners sign in with `POST /auth/login` and send `Authorization: Be
 | Customer | `POST /me/bookings/:id/reschedule` | Move to another time |
 | Anyone | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout` | Accounts and sessions |
 | Anyone | `GET /auth/me` | The signed-in user |
+| Anyone signed in | `PATCH /auth/me` | Edit your name and phone (not email) |
+| Anyone signed in | `POST /auth/password` | Change password (current one required); signs out other devices |
+| Anyone signed in | `POST /auth/sessions/revoke-others` | Sign out everywhere except this browser |
 | Owner | `POST /businesses`, `GET /businesses/mine`, `PATCH /businesses/:id` | Manage salons |
 | Owner | `/businesses/:id/services` | Create, list, update, hide and show again |
 | Owner | `/businesses/:id/staff`, `.../staff/:staffId`, `.../staff/:staffId/services` | Add, rename, hide staff, and what each one offers |

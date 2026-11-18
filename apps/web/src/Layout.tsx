@@ -60,13 +60,18 @@ export function Layout() {
                 <NavLink to="/me" className={({ isActive }) => cn("whitespace-nowrap rounded-control px-2.5 py-2 text-[15px] sm:px-3", isActive ? "bg-sunken font-medium" : "text-ink-2 hover:bg-sunken hover:text-ink")}>
                   My bookings
                 </NavLink>
-                {/* SlotBook staff only. Hiding the link is just tidiness: the API checks every admin request itself. */}
+                <NavLink to="/account" className={({ isActive }) => cn("whitespace-nowrap rounded-control px-2.5 py-2 text-[15px] sm:px-3", isActive ? "bg-sunken font-medium" : "text-ink-2 hover:bg-sunken hover:text-ink")}>
+                  Account
+                </NavLink>
+                {/* SlotBook staff only. Hiding the link is just tidiness: the API checks every admin request itself.
+                    On phones, Admin and Sign out live on the Account page instead: five links don't fit
+                    on a 375px screen, and the header would scroll sideways. */}
                 {user.isPlatformAdmin && (
-                  <NavLink to="/admin" className={({ isActive }) => cn("whitespace-nowrap rounded-control px-2.5 py-2 text-[15px] sm:px-3", isActive ? "bg-sunken font-medium" : "text-ink-2 hover:bg-sunken hover:text-ink")}>
+                  <NavLink to="/admin" className={({ isActive }) => cn("hidden whitespace-nowrap rounded-control px-2.5 py-2 text-[15px] sm:block sm:px-3", isActive ? "bg-sunken font-medium" : "text-ink-2 hover:bg-sunken hover:text-ink")}>
                     Admin
                   </NavLink>
                 )}
-                <Button variant="ghost" className="h-10 px-2.5 sm:px-3" onClick={() => void signOut()}>
+                <Button variant="ghost" className="hidden h-10 px-2.5 sm:inline-flex sm:px-3" onClick={() => void signOut()}>
                   Sign out
                 </Button>
               </>

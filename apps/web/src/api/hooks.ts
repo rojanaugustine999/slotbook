@@ -2,7 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useAuth } from "../auth/AuthProvider";
 import { payDeposit } from "../lib/razorpay";
 import { api } from "./client";
-import type { AuditEntry, Availability, Booking, Calendar, CreateBookingInput, DepositCheckout, OwnedBusiness, OwnerBooking, OwnerService, OpenRefund, OwnerPayments, OwnerStatusChange, PublicBusiness, PublicBusinessCard, RazorpayResult, SalonBalance, ServiceInput, StaffMember, Stats, TimeOff } from "./types";
+import type { AuditEntry, Availability, Booking, Calendar, CreateBookingInput, DepositCheckout, OwnedBusiness, OwnerBooking, OwnerService, OpenRefund, OwnerPayments, OwnerStatusChange, PublicBusiness, PublicBusinessCard, RazorpayResult, SalonBalance, ServiceInput, StaffMember, Stats, TimeOff, User } from "./types";
 import type { HoursBlock } from "../dashboard/hours";
 
 // ─── Data hooks ──────────────────────────────────────────────────────────────
@@ -371,5 +371,28 @@ export function useSaveDepositSettings(businessId: string) {
       void queryClient.invalidateQueries({ queryKey: ["owner-payments", businessId] });
       void queryClient.invalidateQueries({ queryKey: ["business"] }); // the public booking page shows the deposit
     },
+  });
+}
+
+// ─── Your own account (/account) ─────────────────────────────────────────────
+
+export function useUpdateMe() {
+  const { updateUser } = useAuth();
+  return useMutation({
+    mutationFn: async (input: { name?: string; phone?: string | null }) => (await api<{ user: User }>("/auth/me", { method: "PATCH", body: input })).user,
+    onSuccess: (user) => updateUser(user), // the header and My bookings show the new details at once
+  });
+}
+
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: async (input: { currentPassword: string; newPassword: string }) =>
+      api<{ signedOutOtherDevices: number }>("/auth/password", { method: "POST", body: input }),
+  });
+}
+
+export function useSignOutOtherDevices() {
+  return useMutation({
+    mutationFn: async () => api<{ signedOutOtherDevices: number }>("/auth/sessions/revoke-others", { method: "POST" }),
   });
 }

@@ -2,7 +2,7 @@ import { Router, type CookieOptions, type Response } from "express";
 import { isProd } from "../../lib/env.js";
 import { currentUserId, requireAuth } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
-import { loginSchema, registerSchema } from "./auth.schema.js";
+import { changePasswordSchema, loginSchema, registerSchema, updateMeSchema } from "./auth.schema.js";
 import * as auth from "./auth.service.js";
 
 const REFRESH_COOKIE = "sb_refresh";
@@ -48,4 +48,22 @@ authRouter.post("/logout", async (req, res) => {
 
 authRouter.get("/me", requireAuth, async (req, res) => {
   res.json({ user: await auth.getMe(currentUserId(req)) });
+});
+
+// PATCH /auth/me  { name?, phone? }  → your own details (not email: see auth.schema.ts)
+authRouter.patch("/me", requireAuth, validateBody(updateMeSchema), async (req, res) => {
+  res.json({ user: await auth.updateMe(currentUserId(req), req.body) });
+});
+
+// POST /auth/password  { currentPassword, newPassword }
+// Rate-limited like login in app.ts: otherwise it would be a free way to guess the password.
+authRouter.post("/password", requireAuth, validateBody(changePasswordSchema), async (req, res) => {
+  const signedOut = await auth.changePassword(currentUserId(req), req.cookies?.[REFRESH_COOKIE], req.body);
+  res.json({ signedOutOtherDevices: signedOut });
+});
+
+// POST /auth/sessions/revoke-others  → "Sign out everywhere else"
+// The refresh cookie (path /auth) tells us which session is THIS one, to keep it.
+authRouter.post("/sessions/revoke-others", requireAuth, async (req, res) => {
+  res.json({ signedOutOtherDevices: await auth.signOutOtherDevices(currentUserId(req), req.cookies?.[REFRESH_COOKIE]) });
 });
