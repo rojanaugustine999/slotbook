@@ -159,7 +159,9 @@ export function DashboardLayout() {
               <NewSalonLink />
             </div>
             <SetupChecklist key={business.id} business={business} />
-            <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-line" aria-label="Dashboard sections">
+            {/* overflow-x-auto: five tabs can scroll sideways on a phone. overflow-y-hidden too, or the browser
+                also makes the 1px underline overlap (-mb-px on each tab) scrollable and shows ▲▼ arrows. */}
+            <nav className="mb-6 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line" aria-label="Dashboard sections">
               <TabLink to="calendar">Calendar</TabLink>
               <TabLink to="stats">Stats</TabLink>
               <TabLink to="services">Services</TabLink>
