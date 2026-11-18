@@ -158,6 +158,12 @@ export function DashboardLayout() {
               </div>
               <NewSalonLink />
             </div>
+            {business.suspendedAt && (
+              <Notice tone="error" className="mb-5">
+                <strong>Suspended by SlotBook{business.suspendedReason ? `: ${business.suspendedReason}` : ""}.</strong> Your booking page is
+                hidden and isn't taking new bookings. Existing bookings are unchanged, and you can still manage them here.
+              </Notice>
+            )}
             <SetupChecklist key={business.id} business={business} />
             {/* overflow-x-auto: five tabs can scroll sideways on a phone. overflow-y-hidden too, or the browser
                 also makes the 1px underline overlap (-mb-px on each tab) scrollable and shows ▲▼ arrows. */}

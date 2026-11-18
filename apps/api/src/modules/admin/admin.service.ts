@@ -138,3 +138,51 @@ export async function listAuditLog(limit = 50) {
     select: { id: true, action: true, targetType: true, targetId: true, details: true, createdAt: true, actor: { select: { name: true, email: true } } },
   });
 }
+
+// ─── Suspending a salon ─────────────────────────────────────────────────────
+// A suspended salon is hidden and takes no new bookings (enforced in businesses, availability
+// and bookings). Existing bookings are left alone on purpose: those are real appointments,
+// often with deposits paid, and cancelling them is a separate decision.
+
+/** Every salon, newest first, with its owner (SlotBook's own client) and its status. */
+export async function listSalons() {
+  return prisma.business.findMany({
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      address: true,
+      createdAt: true,
+      suspendedAt: true,
+      suspendedReason: true,
+      owner: { select: { name: true, email: true, phone: true } },
+      _count: { select: { bookings: true } },
+    },
+  });
+}
+
+export async function suspendSalon(actorId: string, businessId: string, reason: string) {
+  return prisma.$transaction(async (tx) => {
+    // Guarded: only an ACTIVE salon can be suspended, so two clicks can't log twice.
+    const { count } = await tx.business.updateMany({ where: { id: businessId, suspendedAt: null }, data: { suspendedAt: new Date(), suspendedReason: reason } });
+    if (count === 0) {
+      const exists = await tx.business.findUnique({ where: { id: businessId }, select: { id: true } });
+      throw exists ? conflict("This salon is already suspended", "ALREADY_SUSPENDED") : notFound("Business not found");
+    }
+    await audit(tx, { actorId, action: "salon.suspend", targetType: "business", targetId: businessId, details: { reason } });
+    return tx.business.findUniqueOrThrow({ where: { id: businessId }, select: { id: true, suspendedAt: true, suspendedReason: true } });
+  });
+}
+
+export async function restoreSalon(actorId: string, businessId: string) {
+  return prisma.$transaction(async (tx) => {
+    const { count } = await tx.business.updateMany({ where: { id: businessId, suspendedAt: { not: null } }, data: { suspendedAt: null, suspendedReason: null } });
+    if (count === 0) {
+      const exists = await tx.business.findUnique({ where: { id: businessId }, select: { id: true } });
+      throw exists ? conflict("This salon isn't suspended", "NOT_SUSPENDED") : notFound("Business not found");
+    }
+    await audit(tx, { actorId, action: "salon.restore", targetType: "business", targetId: businessId });
+    return tx.business.findUniqueOrThrow({ where: { id: businessId }, select: { id: true, suspendedAt: true, suspendedReason: true } });
+  });
+}

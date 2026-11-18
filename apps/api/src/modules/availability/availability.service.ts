@@ -1,6 +1,7 @@
 import { DateTime } from "luxon";
 import { prisma } from "../../lib/db.js";
 import { badRequest, notFound } from "../../lib/errors.js";
+import { salonUnavailable } from "../businesses/businesses.service.js";
 import { getAvailableSlots, toRange } from "./availability.js";
 import type { AvailabilityQuery } from "./availability.schema.js";
 
@@ -12,9 +13,11 @@ import type { AvailabilityQuery } from "./availability.schema.js";
 export async function getPublicAvailability(slug: string, query: AvailabilityQuery, options: { ignoreBookingId?: string } = {}) {
   const business = await prisma.business.findUnique({
     where: { slug },
-    select: { id: true, timezone: true, minNoticeMinutes: true, maxAdvanceDays: true },
+    select: { id: true, timezone: true, minNoticeMinutes: true, maxAdvanceDays: true, suspendedAt: true },
   });
   if (!business) throw notFound("Business not found");
+  // No open times at a suspended salon. Booking and rescheduling look slots up here too.
+  if (business.suspendedAt) throw salonUnavailable();
 
   // Only active services of THIS salon can be booked.
   const service = await prisma.service.findFirst({

@@ -4,7 +4,7 @@ import { prisma } from "../../lib/db.js";
 import { badRequest, HttpError, notFound } from "../../lib/errors.js";
 import { getPublicAvailability } from "../availability/availability.service.js";
 import { toRange } from "../availability/availability.js";
-import { getOwnedBusiness } from "../businesses/businesses.service.js";
+import { getOwnedBusiness, salonUnavailable } from "../businesses/businesses.service.js";
 import { env } from "../../lib/env.js";
 import { paymentsConfigured, razorpay } from "../../lib/razorpay.js";
 import { cancelForBooking, runSafely, scheduleForBooking } from "../notifications/notifications.service.js";
@@ -148,8 +148,9 @@ async function findOfferedSlot(args: {
 //   so only the database can guarantee that exactly one wins.
 // ──────────────────────────────────────────────────────────────────────────────
 export async function createBooking(slug: string, customerId: string, input: CreateBookingInput) {
-  const business = await prisma.business.findUnique({ where: { slug }, select: { id: true, timezone: true, depositPercent: true } });
+  const business = await prisma.business.findUnique({ where: { slug }, select: { id: true, timezone: true, depositPercent: true, suspendedAt: true } });
   if (!business) throw notFound("Business not found");
+  if (business.suspendedAt) throw salonUnavailable(); // checked here too, not only in the slot lookup
 
   const service = await prisma.service.findFirst({
     where: { id: input.serviceId, businessId: business.id, active: true },

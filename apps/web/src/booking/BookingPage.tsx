@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
 import { useAuthDialog } from "../auth/AuthDialog";
 import { useAuth } from "../auth/AuthProvider";
-import { describeError } from "../api/client";
+import { ApiError, describeError } from "../api/client";
 import { useAvailability, useBusiness, useCancelBooking, useCreateBooking, usePayDeposit } from "../api/hooks";
 import type { Booking, DepositCheckout, PublicBusiness } from "../api/types";
 import { formatWhen, toStartsAt, upcomingDays } from "../lib/dates";
@@ -24,6 +24,18 @@ export function BookingPage() {
       <div className="flex flex-col items-center py-24 text-ink-3">
         <Spinner className="size-6" />
         <WakingUp />
+      </div>
+    );
+  }
+  // Suspended by SlotBook: the salon exists, it just isn't taking online bookings.
+  if (business.error instanceof ApiError && business.error.code === "SALON_UNAVAILABLE") {
+    return (
+      <div className="mx-auto max-w-md py-16 text-center">
+        <h1 className="text-xl font-medium">This salon isn't taking online bookings right now</h1>
+        <p className="mt-2 text-ink-2">If you already have a booking with them, it's still in My bookings.</p>
+        <Link to="/" className="mt-6 inline-block font-medium text-accent underline underline-offset-2">
+          Find another salon
+        </Link>
       </div>
     );
   }

@@ -65,6 +65,10 @@ model Business {
   depositPercent   Int?     @map("deposit_percent")
   // Cancelling at least this many hours before the start refunds the deposit; later, the salon keeps it.
   freeCancelHours  Int      @default(24) @map("free_cancel_hours")
+  /// Set by a SlotBook super admin: the salon is hidden and takes no new bookings.
+  /// null = active. Only the admin API changes these; the owner's update ignores them.
+  suspendedAt      DateTime? @map("suspended_at") @db.Timestamptz
+  suspendedReason  String?   @map("suspended_reason") // shown to the owner on their dashboard
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
 

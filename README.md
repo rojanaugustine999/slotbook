@@ -251,6 +251,7 @@ Customers and owners sign in with `POST /auth/login` and send `Authorization: Be
 | Razorpay | `POST /webhooks/razorpay` | Payment and refund events, checked by signature |
 | Admin | `GET /admin/balances`, `/admin/refunds`, `/admin/audit` | Balances per salon, refunds needing attention, the audit log |
 | Admin | `POST /admin/businesses/:id/payouts`, `/admin/refunds/:id/retry` | Record a payout, retry a refund |
+| Admin | `GET /admin/businesses`, `POST /admin/businesses/:id/suspend`, `/restore` | List salons; suspend one (hidden, no new bookings, reason shown to the owner) or restore it |
 
 With deposits on, `POST /b/:slug/bookings` answers with a `pending` booking held for 15 minutes
 and a `payment` object (order id, amount, public key id) for Razorpay Checkout. Admins are made

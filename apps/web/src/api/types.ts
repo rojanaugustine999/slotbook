@@ -19,6 +19,18 @@ export interface SalonBalance {
   balanceCents: number; // what SlotBook owes the salon now
 }
 
+export interface AdminSalon {
+  id: string;
+  name: string;
+  slug: string;
+  address: string | null;
+  createdAt: string;
+  suspendedAt: string | null;
+  suspendedReason: string | null;
+  owner: { name: string; email: string; phone: string | null };
+  _count: { bookings: number };
+}
+
 export interface OpenRefund {
   id: string;
   amountCents: number;
@@ -126,6 +138,8 @@ export interface OwnedBusiness {
   slug: string;
   timezone: string;
   address: string | null;
+  suspendedAt?: string | null; // set by SlotBook: hidden, no new bookings
+  suspendedReason?: string | null; // why, shown to the owner
 }
 
 /** A service as the owner sees it: includes hidden ones and the cleanup time. */

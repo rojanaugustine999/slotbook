@@ -2,7 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useAuth } from "../auth/AuthProvider";
 import { payDeposit } from "../lib/razorpay";
 import { api } from "./client";
-import type { AuditEntry, Availability, Booking, Calendar, CreateBookingInput, DepositCheckout, OwnedBusiness, OwnerBooking, OwnerService, OpenRefund, OwnerPayments, OwnerStatusChange, PublicBusiness, PublicBusinessCard, RazorpayResult, SalonBalance, ServiceInput, StaffMember, Stats, TimeOff, User } from "./types";
+import type { AdminSalon, AuditEntry, Availability, Booking, Calendar, CreateBookingInput, DepositCheckout, OwnedBusiness, OwnerBooking, OwnerService, OpenRefund, OwnerPayments, OwnerStatusChange, PublicBusiness, PublicBusinessCard, RazorpayResult, SalonBalance, ServiceInput, StaffMember, Stats, TimeOff, User } from "./types";
 import type { HoursBlock } from "../dashboard/hours";
 
 // ─── Data hooks ──────────────────────────────────────────────────────────────
@@ -342,6 +342,20 @@ export function useAuditLog() {
 function useAdminMutation<TInput>(mutationFn: (input: TInput) => Promise<unknown>) {
   const queryClient = useQueryClient();
   return useMutation({ mutationFn, onSettled: () => void queryClient.invalidateQueries({ queryKey: ["admin"] }) });
+}
+
+export function useAdminSalons() {
+  return useQuery({ queryKey: ["admin", "salons"], queryFn: async () => (await api<{ businesses: AdminSalon[] }>("/admin/businesses")).businesses });
+}
+
+export function useSuspendSalon() {
+  return useAdminMutation(({ businessId, reason }: { businessId: string; reason: string }) =>
+    api(`/admin/businesses/${businessId}/suspend`, { method: "POST", body: { reason } }),
+  );
+}
+
+export function useRestoreSalon() {
+  return useAdminMutation((businessId: string) => api(`/admin/businesses/${businessId}/restore`, { method: "POST" }));
 }
 
 export function useRecordPayout() {

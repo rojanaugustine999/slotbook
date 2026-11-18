@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { currentUserId, requireAuth } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
-import { recordPayoutSchema } from "./admin.schema.js";
+import { recordPayoutSchema, suspendSalonSchema } from "./admin.schema.js";
 import * as admin from "./admin.service.js";
 
 const idParam = z.string().uuid();
@@ -36,6 +36,23 @@ adminRouter.get("/refunds", async (_req, res) => {
 adminRouter.post("/refunds/:refundId/retry", async (req, res) => {
   const refundId = idParam.parse(req.params.refundId);
   res.json({ refund: await admin.retryRefund(currentUserId(req), refundId) });
+});
+
+// GET /admin/businesses → every salon, with its owner and whether it's suspended
+adminRouter.get("/businesses", async (_req, res) => {
+  res.json({ businesses: await admin.listSalons() });
+});
+
+// POST /admin/businesses/:businessId/suspend  { reason }  → hidden, no new bookings
+adminRouter.post("/businesses/:businessId/suspend", validateBody(suspendSalonSchema), async (req, res) => {
+  const businessId = idParam.parse(req.params.businessId);
+  res.json({ business: await admin.suspendSalon(currentUserId(req), businessId, req.body.reason) });
+});
+
+// POST /admin/businesses/:businessId/restore
+adminRouter.post("/businesses/:businessId/restore", async (req, res) => {
+  const businessId = idParam.parse(req.params.businessId);
+  res.json({ business: await admin.restoreSalon(currentUserId(req), businessId) });
 });
 
 // GET /admin/audit → the latest admin actions

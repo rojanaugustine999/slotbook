@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/db.js";
-import { conflict, notFound } from "../../lib/errors.js";
+import { conflict, HttpError, notFound } from "../../lib/errors.js";
 import { paymentsConfigured } from "../../lib/razorpay.js";
 import type { CreateBusinessInput, UpdateBusinessInput } from "./businesses.schema.js";
 
@@ -66,6 +66,13 @@ const LIST_LIMIT = 100; // plenty for now; a search box would come before pagina
 // like "Kochi" works), or the name of a service it shows. `mode: "insensitive"` makes
 // "haircut", "Haircut" and "HAIRCUT" all match. Prisma sends the text as a query parameter,
 // never pasted into the SQL, so a search can't change the query (no SQL injection).
+/**
+ * A suspended salon (see admin.service.ts) answers every public request with this: the salon
+ * page, open times and booking. Checked by the API itself, so it can't be skipped by calling
+ * the API directly instead of using the website.
+ */
+export const salonUnavailable = () => new HttpError(404, "SALON_UNAVAILABLE", "This salon isn't taking online bookings right now.");
+
 export async function listPublicBusinesses(search?: string) {
   const q = search?.trim();
   // `contains` becomes SQL `LIKE '%q%'`, where % means "anything" and _ "any one character".
@@ -75,6 +82,7 @@ export async function listPublicBusinesses(search?: string) {
 
   const rows = await prisma.business.findMany({
     where: {
+      suspendedAt: null, // suspended salons are hidden from the list and from search
       staff: {
         some: {
           active: true,
@@ -112,6 +120,7 @@ export async function getPublicBusiness(slug: string) {
       // Customers see the deposit and the cancellation rule before they book.
       depositPercent: true,
       freeCancelHours: true,
+      suspendedAt: true,
       services: {
         where: { active: true },
         select: { id: true, name: true, durationMin: true, priceCents: true },
@@ -125,6 +134,8 @@ export async function getPublicBusiness(slug: string) {
     },
   });
   if (!business) throw notFound("Business not found");
+  const { suspendedAt, ...publicFields } = business; // the flag itself isn't sent to the public
+  if (suspendedAt) throw salonUnavailable();
   // Without Razorpay keys no deposit is charged, so don't show one either.
-  return { ...business, depositPercent: paymentsConfigured() ? business.depositPercent : null };
+  return { ...publicFields, depositPercent: paymentsConfigured() ? business.depositPercent : null };
 }

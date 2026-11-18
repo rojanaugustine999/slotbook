@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { ApiError, describeError } from "../api/client";
-import { useAdminBalances, useAuditLog, useOpenRefunds, useRecordPayout, useRetryRefund } from "../api/hooks";
-import type { AuditEntry, SalonBalance } from "../api/types";
+import { useAdminBalances, useAdminSalons, useAuditLog, useOpenRefunds, useRecordPayout, useRestoreSalon, useRetryRefund, useSuspendSalon } from "../api/hooks";
+import type { AdminSalon, AuditEntry, SalonBalance } from "../api/types";
 import { useAuthDialog } from "../auth/AuthDialog";
 import { useAuth } from "../auth/AuthProvider";
 import { formatPrice, parsePrice, priceInputValue } from "../lib/money";
@@ -37,6 +37,7 @@ export function AdminPage() {
       <h1 className="text-2xl font-medium">SlotBook admin</h1>
       <Balances />
       <Refunds />
+      <Salons />
       <AuditLog />
     </div>
   );
@@ -176,10 +177,100 @@ function Refunds() {
   );
 }
 
+// ─── Salons: suspend and restore ────────────────────────────────────────────
+
+function Salons() {
+  const salons = useAdminSalons();
+  const restore = useRestoreSalon();
+  const [suspending, setSuspending] = useState<AdminSalon | null>(null);
+
+  return (
+    <Section title="Salons" hint="Suspend a salon to hide it and stop new bookings, for example for abuse or unpaid fees. Existing bookings are kept.">
+      {restore.isError && <Notice tone="error" className="mb-3">{describeError(restore.error)}</Notice>}
+      {salons.isPending ? (
+        <Spinner className="size-5 text-ink-3" />
+      ) : salons.isError ? (
+        <Notice tone="error">{describeError(salons.error)}</Notice>
+      ) : salons.data.length === 0 ? (
+        <Empty>No salons yet.</Empty>
+      ) : (
+        <ul className="space-y-3">
+          {salons.data.map((salon) => (
+            <li key={salon.id} className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="font-medium">
+                  {salon.name}{" "}
+                  {salon.suspendedAt && <span className="ml-1 rounded-full bg-danger-soft px-2 py-0.5 align-middle text-xs font-medium text-danger">Suspended</span>}
+                </p>
+                <p className="truncate text-sm text-ink-2">
+                  /{salon.slug} · {salon._count.bookings} {salon._count.bookings === 1 ? "booking" : "bookings"} · owner {salon.owner.name}, {salon.owner.email}
+                  {salon.owner.phone ? `, ${salon.owner.phone}` : ""}
+                </p>
+                {salon.suspendedAt && <p className="mt-1 text-sm text-ink-2">Reason: {salon.suspendedReason}</p>}
+              </div>
+              {salon.suspendedAt ? (
+                <Button
+                  className="h-10 sm:shrink-0"
+                  loading={restore.isPending && restore.variables === salon.id}
+                  disabled={restore.isPending}
+                  onClick={() => {
+                    if (window.confirm(`Restore ${salon.name}? It will appear on the home page and take bookings again.`)) restore.mutate(salon.id);
+                  }}
+                >
+                  Restore
+                </Button>
+              ) : (
+                <Button variant="danger" className="h-10 sm:shrink-0" onClick={() => setSuspending(salon)}>
+                  Suspend
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {suspending && <SuspendDialog salon={suspending} onClose={() => setSuspending(null)} />}
+    </Section>
+  );
+}
+
+function SuspendDialog({ salon, onClose }: { salon: AdminSalon; onClose: () => void }) {
+  const suspend = useSuspendSalon();
+  const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState<string>();
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (reason.trim().length < 5) return setReasonError("Say why, in a few words. The owner will see this.");
+    setReasonError(undefined);
+    suspend.mutate({ businessId: salon.id, reason: reason.trim() }, { onSuccess: onClose });
+  }
+
+  return (
+    <Dialog open onClose={onClose} title={`Suspend ${salon.name}?`}>
+      <form onSubmit={submit} className="space-y-4" noValidate>
+        <ul className="list-disc space-y-1 pl-5 text-[15px] text-ink-2">
+          <li>It disappears from the home page and search.</li>
+          <li>Its booking page stops taking new bookings.</li>
+          <li>Existing bookings and deposits are kept; the owner can still manage them.</li>
+          <li>The owner sees the reason below on their dashboard. You can restore it any time.</li>
+        </ul>
+        <Field label="Reason (shown to the owner)" value={reason} onChange={(e) => setReason(e.target.value)} error={reasonError} maxLength={300} placeholder="e.g. Unpaid platform fees since October" />
+        {suspend.isError && <Notice tone="error">{describeError(suspend.error)}</Notice>}
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button type="button" onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="danger" loading={suspend.isPending}>Suspend salon</Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
 // ─── Audit log ──────────────────────────────────────────────────────────────
 
 function AuditLog() {
   const log = useAuditLog();
+  const salons = useAdminSalons(); // to show a salon's name instead of its id
+  const salonName = (id: string | null) => salons.data?.find((s) => s.id === id)?.name ?? "a salon";
   return (
     <Section title="Admin activity" hint="Every admin action, newest first. It can't be edited.">
       {log.isPending ? (
@@ -192,7 +283,7 @@ function AuditLog() {
         <ul className="divide-y divide-line rounded-card border border-line bg-surface">
           {log.data.map((entry) => (
             <li key={entry.id} className="px-4 py-3 text-sm">
-              <p>{describeAction(entry)}</p>
+              <p>{describeAction(entry, salonName(entry.targetId))}</p>
               <p className="text-ink-3">
                 {entry.actor.name} · {formatDateTime(entry.createdAt)}
               </p>
@@ -204,8 +295,10 @@ function AuditLog() {
   );
 }
 
-function describeAction(entry: AuditEntry): string {
+function describeAction(entry: AuditEntry, salon: string): string {
   const d = entry.details ?? {};
+  if (entry.action === "salon.suspend") return `Suspended ${salon}${typeof d.reason === "string" ? `: ${d.reason}` : ""}`;
+  if (entry.action === "salon.restore") return `Restored ${salon}`;
   if (entry.action === "payout.record") {
     const ref = typeof d.reference === "string" ? ` (ref ${d.reference})` : "";
     return `Recorded a ${formatPrice(Number(d.amountCents ?? 0))} payout${ref}`;
