@@ -33,7 +33,7 @@ Taken from the running app, with fictional sample data. Everything follows the v
 
 <p align="center">
   <img src="docs/screenshots/booking-desktop.png" alt="The booking page on a desktop: four services, a choice of staff, a day strip, open times grouped by morning, afternoon and evening, and a summary card showing a ₹500 total, ₹100 deposit now, ₹400 at the salon and a Pay ₹100 and book button" width="480">
-  <img src="docs/screenshots/booking-mobile.png" alt="The booking page on a phone: day strip, grouped times and a pinned Confirm bar" width="215">
+  <img src="docs/screenshots/booking-mobile.png" alt="The booking page on a phone: day strip, grouped times and a pinned bar with the chosen time, ₹400 at the salon and a Pay ₹100 button" width="215">
   <img src="docs/screenshots/booking-mobile-dark.png" alt="The same phone page in dark mode" width="215">
 </p>
 

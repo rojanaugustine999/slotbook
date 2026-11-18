@@ -90,6 +90,8 @@ function BookingFlow({ business }: { business: PublicBusiness }) {
   })();
 
   const whenLabel = chosenTime ? formatWhen(toStartsAt(date, chosenTime, business.timezone), business.timezone) : null;
+  // Worked out once, so the summary card and the phone bar always show the same deposit.
+  const depositCents = service ? depositFor(service.priceCents, business.depositPercent) : null;
 
   function chooseService(id: string) {
     setServiceId(id);
@@ -234,7 +236,7 @@ function BookingFlow({ business }: { business: PublicBusiness }) {
                 whenLabel={whenLabel}
                 busy={createBooking.isPending}
                 onConfirm={confirm}
-                depositCents={depositFor(service.priceCents, business.depositPercent)}
+                depositCents={depositCents}
                 freeCancelHours={business.freeCancelHours}
               />
             </aside>
@@ -242,7 +244,16 @@ function BookingFlow({ business }: { business: PublicBusiness }) {
         </div>
       )}
 
-      {service && whenLabel && <MobileConfirmBar serviceName={service.name} whenLabel={whenLabel} busy={createBooking.isPending} onConfirm={confirm} />}
+      {service && whenLabel && (
+        <MobileConfirmBar
+          serviceName={service.name}
+          whenLabel={whenLabel}
+          busy={createBooking.isPending}
+          onConfirm={confirm}
+          depositCents={depositCents}
+          priceCents={service.priceCents}
+        />
+      )}
     </div>
   );
 }

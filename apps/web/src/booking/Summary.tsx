@@ -36,7 +36,7 @@ export function Summary({ serviceName, durationMin, priceCents, staffLabel, when
         </div>
       </dl>
       <Button variant="primary" block className="mt-5" disabled={!whenLabel} loading={busy} onClick={onConfirm}>
-        {depositCents ? `Pay ${formatPrice(depositCents)} and book` : "Confirm booking"}
+        {confirmLabel(depositCents, "long")}
       </Button>
       <p className="mt-3 text-center text-xs text-ink-3">
         {depositCents
@@ -45,6 +45,16 @@ export function Summary({ serviceName, durationMin, priceCents, staffLabel, when
       </p>
     </div>
   );
+}
+
+/**
+ * The words on the confirm button, shared by the desktop summary and the phone bar so they
+ * can never disagree. With a deposit the button says what tapping it costs, so nobody is
+ * surprised by a payment window. "short" fits the narrow phone bar.
+ */
+export function confirmLabel(depositCents: number | null, size: "long" | "short"): string {
+  if (!depositCents) return size === "long" ? "Confirm booking" : "Confirm";
+  return size === "long" ? `Pay ${formatPrice(depositCents)} and book` : `Pay ${formatPrice(depositCents)}`;
 }
 
 // 24 → "24 hours", 1 → "1 hour", 0 → "any time"
@@ -97,15 +107,24 @@ function Row({ label, value, muted, strong }: { label: string; value: string; mu
 }
 
 // Shown on small screens once a time is picked, so the confirm button is always in reach.
-export function MobileConfirmBar({ whenLabel, serviceName, busy, onConfirm }: { whenLabel: string; serviceName: string; busy: boolean; onConfirm: () => void }) {
+export function MobileConfirmBar({ whenLabel, serviceName, busy, onConfirm, depositCents, priceCents }: {
+  whenLabel: string;
+  serviceName: string;
+  busy: boolean;
+  onConfirm: () => void;
+  depositCents: number | null; // null: nothing to pay now
+  priceCents: number;
+}) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-10 flex items-center gap-3 border-t border-line bg-surface px-4 py-3 lg:hidden">
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{serviceName}</p>
         <p className="truncate text-sm text-ink-2">{whenLabel}</p>
+        {/* The rest of the price, so "Pay ₹100" isn't mistaken for the whole cost. */}
+        {depositCents && <p className="truncate text-xs text-ink-3">{formatPrice(priceCents - depositCents)} at the salon</p>}
       </div>
-      <Button variant="primary" loading={busy} onClick={onConfirm}>
-        Confirm
+      <Button variant="primary" className="shrink-0" loading={busy} onClick={onConfirm}>
+        {confirmLabel(depositCents, "short")}
       </Button>
     </div>
   );
