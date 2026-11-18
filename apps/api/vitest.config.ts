@@ -16,6 +16,10 @@ export default defineConfig({
       LOG_LEVEL: "silent", // quiet test output; logging tests pass their own logger
       RATE_LIMIT_ENABLED: "false", // tests make dozens of logins; the limiter tests turn it on themselves
       RESEND_API_KEY: "", // empty: emails go to the in-memory outbox, never to a real inbox
+      // Fake Razorpay keys: tests replace createOrder and sign payments with this secret
+      // themselves, so no test ever reaches the real Razorpay.
+      RAZORPAY_KEY_ID: "rzp_test_fake_for_tests",
+      RAZORPAY_KEY_SECRET: "test-only-razorpay-secret",
     },
 
     // Runs once before all tests: creates the test database and its tables.

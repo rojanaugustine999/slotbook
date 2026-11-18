@@ -28,6 +28,8 @@ export interface PublicBusiness {
   slug: string;
   timezone: string; // IANA name, e.g. "Asia/Kolkata"
   address: string | null;
+  depositPercent: number | null; // null: no deposit, everything is paid at the salon
+  freeCancelHours: number; // cancel at least this many hours ahead to get the deposit back
   services: PublicService[];
   staff: PublicStaff[];
 }
@@ -65,6 +67,25 @@ export interface Booking {
   service: { id: string; name: string; durationMin: number; priceCents: number };
   staff: { id: string; name: string };
   business: { name: string; slug: string; timezone: string };
+  holdExpiresAt: string | null; // set while the slot is held for an unpaid deposit
+  payment: { amountCents: number; currency: string; status: PaymentStatus } | null;
+}
+
+export type PaymentStatus = "created" | "paid" | "failed" | "refunded";
+
+// What the API returns when a deposit is due: everything Razorpay Checkout needs.
+export interface DepositCheckout {
+  orderId: string;
+  amountCents: number;
+  currency: string;
+  keyId: string; // Razorpay's PUBLIC key id. The secret never leaves the server.
+}
+
+// What Razorpay Checkout hands the browser after a payment. Only claims until the API checks the signature.
+export interface RazorpayResult {
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
 }
 
 // ── Owner side ──────────────────────────────────────────────────────────────

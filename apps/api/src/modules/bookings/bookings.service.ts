@@ -5,7 +5,17 @@ import { badRequest, HttpError, notFound } from "../../lib/errors.js";
 import { getPublicAvailability } from "../availability/availability.service.js";
 import { toRange } from "../availability/availability.js";
 import { getOwnedBusiness } from "../businesses/businesses.service.js";
+import { env } from "../../lib/env.js";
+import { paymentsConfigured, razorpay } from "../../lib/razorpay.js";
 import { cancelForBooking, runSafely, scheduleForBooking } from "../notifications/notifications.service.js";
+import {
+  cancelHoldRelease,
+  closeUnpaidPayments,
+  depositFor,
+  HOLD_MINUTES,
+  releaseExpiredHolds,
+  scheduleHoldRelease,
+} from "../payments/payments.service.js";
 import { checkStatusChange } from "./bookings.rules.js";
 import type { CreateBookingInput, OwnerBookingsQuery, RescheduleBookingInput } from "./bookings.schema.js";
 
@@ -19,6 +29,8 @@ const bookingFields = {
   priceCents: true, // the price saved with the booking, not the service's current price
   status: true,
   notes: true,
+  holdExpiresAt: true, // set while a deposit is awaited
+  payment: { select: { amountCents: true, currency: true, status: true } },
   service: { select: { id: true, name: true, durationMin: true, priceCents: true } },
   staff: { select: { id: true, name: true } },
   business: { select: { name: true, slug: true, timezone: true } },
@@ -135,7 +147,7 @@ async function findOfferedSlot(args: {
 //   so only the database can guarantee that exactly one wins.
 // ──────────────────────────────────────────────────────────────────────────────
 export async function createBooking(slug: string, customerId: string, input: CreateBookingInput) {
-  const business = await prisma.business.findUnique({ where: { slug }, select: { id: true, timezone: true } });
+  const business = await prisma.business.findUnique({ where: { slug }, select: { id: true, timezone: true, depositPercent: true } });
   if (!business) throw notFound("Business not found");
 
   const service = await prisma.service.findFirst({
@@ -155,9 +167,16 @@ export async function createBooking(slug: string, customerId: string, input: Cre
 
   // Layer 2: try to save. If the customer chose "anyone", slot.staffIds may hold
   // several people; when one was just taken by another customer, try the next.
+  // A deposit is due only when this salon asks for one AND the server has Razorpay keys.
+  const depositCents = paymentsConfigured() ? depositFor(service.priceCents, business.depositPercent) : null;
+  const holdExpiresAt = depositCents ? new Date(Date.now() + HOLD_MINUTES * MINUTE_MS) : null;
+
   for (const staffId of slot.staffIds) {
-    const created = await writeUnlessTaken(staffId, (tx) =>
-      tx.booking.create({
+    const created = await writeUnlessTaken(staffId, async (tx) => {
+      // Release this person's expired holds first, inside the same locked transaction, so a
+      // hold nobody paid for can't block this customer (and nobody else can slip in meanwhile).
+      await releaseExpiredHolds(tx, { staffId });
+      return tx.booking.create({
         data: {
           businessId: business.id,
           serviceId: input.serviceId,
@@ -169,18 +188,27 @@ export async function createBooking(slug: string, customerId: string, input: Cre
           // a customer could otherwise send { "priceCents": 1 }. Later price changes leave it alone.
           priceCents: service.priceCents,
           notes: input.notes,
-          status: "confirmed",
+          // With a deposit, the booking only HOLDS the slot until it's paid.
+          status: depositCents ? "pending" : "confirmed",
+          holdExpiresAt,
         },
         select: bookingFields,
-      }),
-    );
+      });
+    });
     if (!created) continue; // this staff member was just taken: try the next one (any other error was thrown)
+
+    if (depositCents && holdExpiresAt) {
+      const payment = await openDeposit(created.id, business.id, depositCents);
+      await runSafely("schedule hold release", () => scheduleHoldRelease(created.id, holdExpiresAt));
+      // Reminders wait until the deposit is paid (confirmDeposit schedules them).
+      return { booking: { ...created, payment: { amountCents: depositCents, currency: "INR", status: "created" as const } }, payment };
+    }
 
     // Saved. Now queue the confirmation and reminders. This sits OUTSIDE the
     // try above (a queue problem is not a double booking) and is wrapped so that
     // a Redis outage can never make a successful booking look like a failure.
     await runSafely("schedule reminders", () => scheduleForBooking(created.id));
-    return created;
+    return { booking: created, payment: null };
   }
 
   // Everyone who was free a moment ago has since been booked.
@@ -198,6 +226,27 @@ export function listMyBookings(customerId: string) {
 
 // Loads one of the customer's bookings and checks they may still change it:
 // it must be active and must not have started yet.
+/**
+ * Asks Razorpay for an order and saves our Payment row for it. This is a network call, so it
+ * runs AFTER the booking transaction (never hold a database lock while waiting on the internet).
+ * If Razorpay can't be reached, the hold is released at once rather than left to block the slot.
+ */
+async function openDeposit(bookingId: string, businessId: string, amountCents: number) {
+  let order;
+  try {
+    order = await razorpay.createOrder({ amountCents, receipt: bookingId.slice(0, 40), notes: { bookingId } });
+  } catch (err) {
+    await prisma.booking.updateMany({ where: { id: bookingId, status: "pending" }, data: { status: "cancelled" } });
+    throw Object.assign(new HttpError(503, "PAYMENTS_UNAVAILABLE", "Payments are not available right now. Please try again in a minute."), { cause: err });
+  }
+
+  await prisma.payment.create({
+    data: { bookingId, businessId, providerOrderId: order.id, amountCents, currency: "INR" },
+  });
+  // Everything Razorpay Checkout needs in the browser. The key id is public by design; the secret never leaves the server.
+  return { orderId: order.id, amountCents, currency: "INR", keyId: env.RAZORPAY_KEY_ID ?? "" };
+}
+
 async function getMyChangeableBooking(customerId: string, bookingId: string) {
   // Filtering by customerId means someone else's booking looks exactly like
   // a booking that doesn't exist: 404 either way, nothing leaks.
@@ -232,6 +281,10 @@ export async function cancelMyBooking(customerId: string, bookingId: string) {
     throw err;
   }
 
+  // A held booking given up before paying: its order can never be paid now.
+  await closeUnpaidPayments(prisma, [booking.id]);
+  await runSafely("cancel hold release", () => cancelHoldRelease(booking.id));
+
   // Stop the reminders, and tell the customer it's cancelled.
   await runSafely("cancel reminders", () => cancelForBooking(booking.id, { notifyCustomer: true }));
   return cancelled;
@@ -241,6 +294,8 @@ export async function cancelMyBooking(customerId: string, bookingId: string) {
 // The booking keeps its id, so it is one booking that moved, not a new one.
 export async function rescheduleMyBooking(customerId: string, bookingId: string, input: RescheduleBookingInput) {
   const booking = await getMyChangeableBooking(customerId, bookingId);
+  // A held booking has a Razorpay order for one exact slot: pay first, then move it.
+  if (booking.status === "pending" && booking.holdExpiresAt) throw cannotChange("Pay the deposit before moving this booking");
   const startsAt = parseWholeMinute(input.startsAt);
   const staffId = input.staffId ?? booking.staffId; // default: keep the same person
 
@@ -364,6 +419,8 @@ export async function changeBookingStatus(businessId: string, bookingId: string,
   // The owner cancelled it: same as a customer cancelling. (completed and no_show
   // happen after the start, so no reminders are left to stop.)
   if (to === "cancelled") {
+    await closeUnpaidPayments(prisma, [booking.id]);
+    await runSafely("cancel hold release", () => cancelHoldRelease(booking.id));
     await runSafely("cancel reminders", () => cancelForBooking(booking.id, { notifyCustomer: true }));
   }
   return updated;

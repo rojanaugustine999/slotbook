@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/db.js";
 import { conflict, notFound } from "../../lib/errors.js";
+import { paymentsConfigured } from "../../lib/razorpay.js";
 import type { CreateBusinessInput, UpdateBusinessInput } from "./businesses.schema.js";
 
 // ─── Authorization pattern ───────────────────────────────────────────────────
@@ -124,5 +125,6 @@ export async function getPublicBusiness(slug: string) {
     },
   });
   if (!business) throw notFound("Business not found");
-  return business;
+  // Without Razorpay keys no deposit is charged, so don't show one either.
+  return { ...business, depositPercent: paymentsConfigured() ? business.depositPercent : null };
 }

@@ -1,7 +1,8 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthProvider";
+import { payDeposit } from "../lib/razorpay";
 import { api } from "./client";
-import type { Availability, Booking, Calendar, CreateBookingInput, OwnedBusiness, OwnerBooking, OwnerService, OwnerStatusChange, PublicBusiness, PublicBusinessCard, ServiceInput, StaffMember, Stats, TimeOff } from "./types";
+import type { Availability, Booking, Calendar, CreateBookingInput, DepositCheckout, OwnedBusiness, OwnerBooking, OwnerService, OwnerStatusChange, PublicBusiness, PublicBusinessCard, RazorpayResult, ServiceInput, StaffMember, Stats, TimeOff } from "./types";
 import type { HoursBlock } from "../dashboard/hours";
 
 // ─── Data hooks ──────────────────────────────────────────────────────────────
@@ -61,11 +62,37 @@ export function useMyBookings() {
 export function useCreateBooking(slug: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: CreateBookingInput) => (await api<{ booking: Booking }>(`/b/${encodeURIComponent(slug)}/bookings`, { method: "POST", body: input })).booking,
+    // payment is null when no deposit is due; otherwise the booking is only held until it's paid.
+    mutationFn: async (input: CreateBookingInput) =>
+      api<{ booking: Booking; payment: DepositCheckout | null }>(`/b/${encodeURIComponent(slug)}/bookings`, { method: "POST", body: input }),
     // Whatever happened, the open slots have probably changed.
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ["availability", slug] });
       void queryClient.invalidateQueries({ queryKey: ["my-bookings"] });
+    },
+  });
+}
+
+/**
+ * Pays a held booking's deposit, start to finish:
+ *   1. the order: passed in right after booking, or fetched again (e.g. from "My bookings");
+ *   2. Razorpay's window, where the customer pays;
+ *   3. our API, which checks Razorpay's signature and only then confirms the booking.
+ * Rejects with CheckoutClosed when the customer just closes the window.
+ */
+export function usePayDeposit() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async ({ booking, checkout }: { booking: Booking; checkout?: DepositCheckout }) => {
+      const order = checkout ?? (await api<{ payment: DepositCheckout }>(`/me/bookings/${booking.id}/payment`)).payment;
+      const result: RazorpayResult = await payDeposit(order, { description: `${booking.service.name} deposit`, name: user?.name, email: user?.email });
+      const confirmed = (await api<{ booking: Pick<Booking, "id" | "status"> }>(`/me/bookings/${booking.id}/pay`, { method: "POST", body: result })).booking;
+      return { status: confirmed.status, order };
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["my-bookings"] });
+      void queryClient.invalidateQueries({ queryKey: ["availability"] });
     },
   });
 }

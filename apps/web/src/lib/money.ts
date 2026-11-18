@@ -36,3 +36,14 @@ export function formatDuration(minutes: number): string {
   const rest = minutes % 60;
   return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
 }
+
+// ─── Deposits ────────────────────────────────────────────────────────────────
+// The same rule as depositFor in the API (payments.service.ts), only to SHOW the amount
+// before booking. What's actually charged always comes from the server's Razorpay order.
+// ──────────────────────────────────────────────────────────────────────────────
+/** The deposit in paise for a price, or null when none is due. At least ₹1, at most the price. */
+export function depositFor(priceCents: number, depositPercent: number | null): number | null {
+  if (!depositPercent || priceCents < 100) return null;
+  const deposit = Math.round((priceCents * depositPercent) / 100);
+  return Math.min(priceCents, Math.max(100, deposit));
+}

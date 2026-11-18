@@ -30,6 +30,11 @@ const envSchema = z.object({
   // so you can build and test everything without an email account.
   RESEND_API_KEY: z.string().optional(),
   MAIL_FROM: z.string().default("SlotBook <onboarding@resend.dev>"),
+
+  // Razorpay (deposits). Without both, salons can't take deposits and booking works as
+  // before. The key id is public (the browser needs it); the secret must never leave the server.
+  RAZORPAY_KEY_ID: z.string().optional(),
+  RAZORPAY_KEY_SECRET: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

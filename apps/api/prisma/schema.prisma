@@ -166,20 +166,23 @@ enum BookingStatus {
 }
 
 model Booking {
-  id         String        @id @default(uuid()) @db.Uuid
-  businessId String        @map("business_id") @db.Uuid
-  staffId    String        @map("staff_id") @db.Uuid
-  serviceId  String        @map("service_id") @db.Uuid
-  customerId String        @map("customer_id") @db.Uuid
-  startsAt   DateTime      @map("starts_at") @db.Timestamptz
-  endsAt     DateTime      @map("ends_at") @db.Timestamptz // includes the service buffer
+  id            String        @id @default(uuid()) @db.Uuid
+  businessId    String        @map("business_id") @db.Uuid
+  staffId       String        @map("staff_id") @db.Uuid
+  serviceId     String        @map("service_id") @db.Uuid
+  customerId    String        @map("customer_id") @db.Uuid
+  startsAt      DateTime      @map("starts_at") @db.Timestamptz
+  endsAt        DateTime      @map("ends_at") @db.Timestamptz // includes the service buffer
   // A snapshot of the service's price when the booking was made. Copied, not looked up,
   // so changing a price later doesn't rewrite past bookings or last month's revenue.
-  priceCents Int           @map("price_cents")
-  status     BookingStatus @default(confirmed)
-  notes      String?
-  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt  DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  priceCents    Int           @map("price_cents")
+  status        BookingStatus @default(confirmed)
+  // Set while a "pending" booking waits for its deposit. After this moment the hold is
+  // void: the slot is offered again and the booking is cancelled (see releaseExpiredHolds).
+  holdExpiresAt DateTime?     @map("hold_expires_at") @db.Timestamptz
+  notes         String?
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
   business      Business       @relation(fields: [businessId], references: [id])
   staff         Staff          @relation(fields: [staffId], references: [id])

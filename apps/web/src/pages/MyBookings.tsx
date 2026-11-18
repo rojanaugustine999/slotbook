@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { describeError } from "../api/client";
-import { useCancelBooking, useMyBookings } from "../api/hooks";
+import { useCancelBooking, useMyBookings, usePayDeposit } from "../api/hooks";
 import type { Booking } from "../api/types";
 import { useAuthDialog } from "../auth/AuthDialog";
 import { useAuth } from "../auth/AuthProvider";
-import { formatWhen, isInFuture } from "../lib/dates";
+import { formatTimeOf, formatWhen, isInFuture } from "../lib/dates";
+import { CheckoutClosed } from "../lib/razorpay";
 import { formatPrice } from "../lib/money";
 import { Button, Spinner } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
@@ -93,7 +94,10 @@ function BookingCard({ booking, canCancel }: { booking: Booking; canCancel?: boo
       </div>
       <p className="mt-2 text-sm text-ink-2">
         {booking.business.name} · with {booking.staff.name} · {formatPrice(booking.priceCents)}
+        {booking.payment?.status === "paid" && ` · ${formatPrice(booking.payment.amountCents)} deposit paid`}
       </p>
+
+      {canCancel && <DepositDue booking={booking} />}
 
       {canCancel && (
         <div className="mt-4">
@@ -116,5 +120,31 @@ function BookingCard({ booking, canCancel }: { booking: Booking; canCancel?: boo
         </div>
       </Dialog>
     </li>
+  );
+}
+
+// A booking held for an unpaid deposit: say until when, and let the customer pay from here
+// (they may have closed the payment window or reloaded the booking page).
+function DepositDue({ booking }: { booking: Booking }) {
+  const payForHold = usePayDeposit();
+  if (booking.status !== "pending" || booking.payment?.status !== "created" || !booking.holdExpiresAt) return null;
+
+  const deposit = formatPrice(booking.payment.amountCents);
+  if (!isInFuture(booking.holdExpiresAt)) {
+    return <Notice className="mt-3">The hold ran out before the {deposit} deposit was paid, so this time has been released.</Notice>;
+  }
+
+  const error = payForHold.error && !(payForHold.error instanceof CheckoutClosed) ? describeError(payForHold.error) : null;
+  return (
+    <div className="mt-3 rounded-control border border-line bg-warn-soft p-3.5">
+      <p className="text-sm text-warn">
+        Waiting for your {deposit} deposit. Pay by {formatTimeOf(booking.holdExpiresAt, booking.business.timezone)}, or the time is released for others.
+      </p>
+      {error && <Notice tone="error" className="mt-3">{error}</Notice>}
+      {/* The payment's own result refreshes this list (usePayDeposit), so the card turns "Confirmed". */}
+      <Button variant="primary" className="mt-3 h-10" loading={payForHold.isPending} onClick={() => payForHold.mutate({ booking })}>
+        Pay {deposit} deposit
+      </Button>
+    </div>
   );
 }
