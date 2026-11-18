@@ -26,7 +26,7 @@ export function AdminPage() {
     return (
       <div className="mx-auto flex max-w-md flex-col items-center py-20 text-center">
         <h1 className="text-xl font-medium">Sign in to continue</h1>
-        <Button variant="primary" className="mt-5" onClick={() => openAuth({ reason: "Sign in to continue." })}>Sign in</Button>
+        <Button variant="primary" className="mt-5" onClick={() => openAuth({ purpose: "to continue." })}>Sign in</Button>
       </div>
     );
   }

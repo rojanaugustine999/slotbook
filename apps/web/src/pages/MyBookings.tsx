@@ -26,7 +26,7 @@ export function MyBookings() {
       <Centered>
         <h1 className="text-xl font-medium">Your bookings</h1>
         <p className="mt-2 text-ink-2">Sign in to see your appointments, or cancel one.</p>
-        <Button variant="primary" className="mt-5" onClick={() => openAuth({ reason: "Sign in to see your bookings." })}>
+        <Button variant="primary" className="mt-5" onClick={() => openAuth({ purpose: "to see your bookings." })}>
           Sign in
         </Button>
       </Centered>

@@ -8,7 +8,11 @@ import { useAuth } from "./AuthProvider";
 
 interface OpenOptions {
   /** A sentence explaining why we're asking, such as "Sign in to confirm your booking". */
-  reason?: string;
+  /**
+   * What signing in is FOR, without the verb: "to see your bookings". The dialog adds
+   * "Sign in" or "Create an account" to match the form, so the line never contradicts it.
+   */
+  purpose?: string;
   /** Runs right after a successful sign-in, so the person carries on where they were. */
   onSuccess?: () => void;
   mode?: "signIn" | "signUp";
@@ -78,7 +82,11 @@ function AuthForm({ options, onDone, onModeChange }: { options: OpenOptions; onD
 
   return (
     <form onSubmit={submit} className="space-y-4" noValidate>
-      {options.reason && <p className="text-[15px] text-ink-2">{options.reason}</p>}
+      {options.purpose && (
+        <p className="text-[15px] text-ink-2">
+          {creating ? "Create an account" : "Sign in"} {options.purpose}
+        </p>
+      )}
       {error && <Notice tone="error">{error}</Notice>}
 
       {creating && <Field label="Your name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} error={fieldErrors.name?.[0]} required />}

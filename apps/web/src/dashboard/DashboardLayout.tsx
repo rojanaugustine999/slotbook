@@ -49,10 +49,10 @@ export function DashboardGate({ children }: { children: (businesses: OwnedBusine
         <h1 className="text-xl font-medium">Owner dashboard</h1>
         <p className="mt-2 text-ink-2">Sign in to see your calendar, or create an account to set up your salon.</p>
         <div className="mt-5 flex flex-wrap justify-center gap-3">
-          <Button variant="primary" onClick={() => openAuth({ reason: "Sign in to open your dashboard." })}>
+          <Button variant="primary" onClick={() => openAuth({ purpose: "to open your dashboard." })}>
             Sign in
           </Button>
-          <Button onClick={() => openAuth({ mode: "signUp", reason: "Create an account, then set up your salon." })}>Create account</Button>
+          <Button onClick={() => openAuth({ mode: "signUp", purpose: "to set up your salon." })}>Create account</Button>
         </div>
       </Centered>
     );

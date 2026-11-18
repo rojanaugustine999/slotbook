@@ -30,7 +30,7 @@ export function AccountPage() {
       <div className="mx-auto flex max-w-md flex-col items-center py-20 text-center">
         <h1 className="text-xl font-medium">Your account</h1>
         <p className="mt-2 text-ink-2">Sign in to see and change your details.</p>
-        <Button variant="primary" className="mt-5" onClick={() => openAuth({ reason: "Sign in to see your account." })}>
+        <Button variant="primary" className="mt-5" onClick={() => openAuth({ purpose: "to see your account." })}>
           Sign in
         </Button>
       </div>

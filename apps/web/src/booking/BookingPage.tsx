@@ -166,7 +166,7 @@ function BookingFlow({ business }: { business: PublicBusiness }) {
   function confirm() {
     // Booking needs an account. Ask for it right here, keeping everything the person picked.
     if (status !== "signedIn") {
-      openAuth({ reason: "Sign in to confirm your booking. It only takes a moment.", onSuccess: submit });
+      openAuth({ purpose: "to confirm your booking. It only takes a moment.", onSuccess: submit });
       return;
     }
     submit();
