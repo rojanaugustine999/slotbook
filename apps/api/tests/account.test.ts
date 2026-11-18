@@ -19,7 +19,7 @@ beforeEach(async () => {
 async function device(signUp = false) {
   const agent = request.agent(app);
   const res = signUp
-    ? await agent.post("/auth/register").send({ email: EMAIL, password: PASSWORD, name: "Asha Menon" })
+    ? await agent.post("/auth/register").send({ email: EMAIL, password: PASSWORD, name: "Asha Menon", phone: "+91 98765 43210" })
     : await agent.post("/auth/login").send({ email: EMAIL, password: PASSWORD });
   return { agent, auth: { Authorization: `Bearer ${res.body.accessToken}` } };
 }
@@ -33,10 +33,13 @@ describe("a phone number at sign-up", () => {
     expect(res.body.user.phone).toBe("+91 98765 43210");
   });
 
-  it("is optional: left out or left empty, there's simply no phone", async () => {
-    expect((await signUp()).body.user.phone).toBeNull();
-    await resetDb();
-    expect((await signUp("  ")).body.user.phone).toBeNull();
+  it("is required: left out or left empty, no account is made", async () => {
+    for (const phone of [undefined, "", "   "]) {
+      const res = await signUp(phone);
+      expect(res.status).toBe(400);
+      expect(res.body.error.details.phone).toEqual(["enter your phone number"]);
+    }
+    expect(await prisma.user.count()).toBe(0);
   });
 
   it("follows the same rule as the Account page", async () => {
@@ -56,13 +59,22 @@ describe("PATCH /auth/me", () => {
     expect(res.body.user).toMatchObject({ name: "Asha M.", phone: "+91 98765 43210", email: EMAIL });
   });
 
-  it("an empty phone removes it", async () => {
+  it("the phone can be changed but not removed", async () => {
     const me = await device(true);
-    await me.agent.patch("/auth/me").set(me.auth).send({ phone: "98765 43210" }).expect(200);
 
-    const res = await me.agent.patch("/auth/me").set(me.auth).send({ phone: "" });
+    expect((await me.agent.patch("/auth/me").set(me.auth).send({ phone: "" })).status).toBe(400);
+    expect((await me.agent.patch("/auth/me").set(me.auth).send({ phone: null })).status).toBe(400);
+    expect((await me.agent.patch("/auth/me").set(me.auth).send({ phone: "98765 00000" })).body.user.phone).toBe("98765 00000");
+  });
 
-    expect(res.body.user.phone).toBeNull();
+  it("someone from before phones were required can still save just a new name", async () => {
+    const me = await device(true);
+    await prisma.user.update({ where: { email: EMAIL }, data: { phone: null } }); // an older account
+
+    const res = await me.agent.patch("/auth/me").set(me.auth).send({ name: "Asha M." });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user).toMatchObject({ name: "Asha M.", phone: null });
   });
 
   it("refuses a phone that isn't a phone number, and an empty request", async () => {

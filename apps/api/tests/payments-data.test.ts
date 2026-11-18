@@ -116,7 +116,7 @@ describe("payments", () => {
 
 describe("super admin", () => {
   it("can't be granted through the API, even by sending the field", async () => {
-    const res = await request(app).post("/auth/register").send({ email: "sneaky@example.com", password: "correct-horse-42", name: "Sneaky", isPlatformAdmin: true });
+    const res = await request(app).post("/auth/register").send({ email: "sneaky@example.com", password: "correct-horse-42", name: "Sneaky", phone: "+91 90000 00002", isPlatformAdmin: true });
     expect(res.status).toBe(201);
     const user = await prisma.user.findUniqueOrThrow({ where: { email: "sneaky@example.com" } });
     expect(user.isPlatformAdmin).toBe(false); // the unknown field was stripped

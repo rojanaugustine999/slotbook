@@ -88,7 +88,10 @@ function Details({ user }: { user: User }) {
     if (name.trim() === "") return setNameError("Enter your name.");
     setNameError(undefined);
     setSaved(false);
-    save.mutate({ name: name.trim(), phone: phone.trim() }, { onSuccess: () => setSaved(true) });
+    // A phone can be changed but not removed. Accounts from before phones were required may
+    // have none: leaving the box empty then just saves the name.
+    const typed = phone.trim();
+    save.mutate(typed || user.phone ? { name: name.trim(), phone: typed } : { name: name.trim() }, { onSuccess: () => setSaved(true) });
   }
 
   return (
@@ -101,7 +104,7 @@ function Details({ user }: { user: User }) {
           <p className="mt-1 text-xs text-ink-3">The email you sign in with can't be changed here.</p>
         </div>
         <Field
-          label="Phone (optional)"
+          label="Phone"
           type="tel"
           autoComplete="tel"
           inputMode="tel"
@@ -109,7 +112,7 @@ function Details({ user }: { user: User }) {
           value={phone}
           onChange={(e) => { setPhone(e.target.value); setSaved(false); }}
           error={phoneError}
-          hint="Salons you book with can call you, for example if you're running late. Leave it empty to remove it."
+          hint="Salons you book with can call you, for example if you're running late."
         />
         {save.isError && !phoneError && <Notice tone="error">{describeError(save.error)}</Notice>}
         <div className="flex items-center gap-3">

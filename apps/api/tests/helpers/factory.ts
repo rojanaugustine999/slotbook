@@ -11,7 +11,7 @@ export async function createOwner(app: Express) {
   counter += 1;
   const res = await request(app)
     .post("/auth/register")
-    .send({ email: `owner${counter}@example.com`, password: "correct-horse-42", name: `Owner ${counter}` });
+    .send({ email: `owner${counter}@example.com`, password: "correct-horse-42", name: `Owner ${counter}`, phone: "+91 90000 00000" });
 
   return { auth: { Authorization: `Bearer ${res.body.accessToken}` } };
 }

@@ -7,7 +7,7 @@ import { resetDb } from "./helpers/db.js";
 const app = createApp();
 
 // A made-up person used in every test.
-const maya = { email: "maya@example.com", password: "correct-horse-42", name: "Maya" };
+const maya = { email: "maya@example.com", password: "correct-horse-42", name: "Maya", phone: "+91 98765 43210" };
 
 // Start every test with empty tables.
 beforeEach(async () => {

@@ -1,15 +1,18 @@
 import { z } from "zod";
 
 // A phone as people type it: digits, spaces, dashes, brackets, an optional leading +.
-// An empty box means "no phone" (null), so a number can be removed again.
-// Shared by sign-up and the Account page, so both accept exactly the same numbers.
+// REQUIRED: salons need a way to reach the people who book with them. An empty box is
+// "missing", not "no phone". Shared by sign-up and the Account page, so both accept
+// exactly the same numbers.
+// (The database column stays optional: accounts made before this rule may have no phone,
+// and they're nudged to add one on My bookings rather than given a made-up number.)
 const phone = z.preprocess(
-  (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+  (value) => (value === undefined || value === null ? "" : value),
   z
     .string()
     .trim()
-    .regex(/^\+?[0-9 ()-]{6,20}$/, "use digits, like +91 98765 43210")
-    .nullable(),
+    .min(1, { message: "enter your phone number", abort: true }) // empty: just this message, not "use digits" too
+    .regex(/^\+?[0-9 ()-]{6,20}$/, "use digits, like +91 98765 43210"),
 );
 
 export const registerSchema = z.object({
@@ -17,8 +20,7 @@ export const registerSchema = z.object({
   // bcrypt only uses the first 72 bytes of a password, so cap it there.
   password: z.string().min(8, "at least 8 characters").max(72),
   name: z.string().trim().min(1).max(100),
-  // Optional on purpose: salon owners sign up here too, and a forced box collects fake numbers.
-  phone: phone.optional(),
+  phone,
 });
 
 export const loginSchema = z.object({
@@ -28,6 +30,8 @@ export const loginSchema = z.object({
 
 // Your own details. Email is deliberately NOT here: changing it safely needs a confirmation
 // link sent to the new address, and SlotBook doesn't send real emails.
+// The phone can be changed but not removed. Leave it out to keep the current one (which is
+// how someone without a phone yet saves just a new name).
 export const updateMeSchema = z
   .object({ name: z.string().trim().min(1).max(100).optional(), phone: phone.optional() })
   .refine((input) => input.name !== undefined || input.phone !== undefined, "send a name or a phone");

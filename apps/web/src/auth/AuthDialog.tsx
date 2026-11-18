@@ -93,16 +93,17 @@ function AuthForm({ options, onDone, onModeChange }: { options: OpenOptions; onD
         placeholder={creating ? "At least 8 characters" : undefined}
         required
       />
-      {/* Optional on purpose (owners sign up here too), but the reason is given so customers add it. */}
+      {/* Required: salons need a way to reach the people who book with them. The reason is shown. */}
       {creating && (
         <Field
-          label="Phone (optional)"
+          label="Phone"
           type="tel"
           autoComplete="tel"
           inputMode="tel"
           placeholder="+91 98765 43210"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
+          required
           error={fieldErrors.phone?.[0]}
           hint="So a salon can reach you about your booking, for example if you're running late."
         />

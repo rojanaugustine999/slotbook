@@ -34,7 +34,7 @@ describe("request logging", () => {
   });
 
   it("uses the level that matches the outcome", async () => {
-    await request(app).post("/auth/register").send({ email: "maya@example.com", password: "correct-horse-42", name: "Maya" });
+    await request(app).post("/auth/register").send({ email: "maya@example.com", password: "correct-horse-42", name: "Maya", phone: "+91 90000 00001" });
     await request(app).get("/b/no-such-salon");
     await settle();
 
@@ -45,7 +45,7 @@ describe("request logging", () => {
   });
 
   it("never writes passwords, tokens or the Authorization header", async () => {
-    const register = await request(app).post("/auth/register").send({ email: "maya@example.com", password: "correct-horse-42", name: "Maya" });
+    const register = await request(app).post("/auth/register").send({ email: "maya@example.com", password: "correct-horse-42", name: "Maya", phone: "+91 90000 00001" });
     const token = register.body.accessToken as string;
     await request(app).get("/auth/me").set("Authorization", `Bearer ${token}`);
     await request(app).post("/auth/login").send({ email: "maya@example.com", password: "correct-horse-42" });
@@ -60,7 +60,7 @@ describe("request logging", () => {
   });
 
   it("records which user made an authenticated request", async () => {
-    const register = await request(app).post("/auth/register").send({ email: "maya@example.com", password: "correct-horse-42", name: "Maya" });
+    const register = await request(app).post("/auth/register").send({ email: "maya@example.com", password: "correct-horse-42", name: "Maya", phone: "+91 90000 00001" });
     lines.length = 0;
 
     await request(app).get("/auth/me").set("Authorization", `Bearer ${register.body.accessToken}`);
