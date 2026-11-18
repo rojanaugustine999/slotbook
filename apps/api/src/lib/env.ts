@@ -35,6 +35,8 @@ const envSchema = z.object({
   // before. The key id is public (the browser needs it); the secret must never leave the server.
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
+  // Set in the Razorpay dashboard when adding the webhook. Without it, webhooks are refused.
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

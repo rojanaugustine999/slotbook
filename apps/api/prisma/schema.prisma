@@ -354,3 +354,15 @@ model Notification {
   @@index([status, sendAt])
   @@map("notifications")
 }
+
+/// Every webhook event we have handled. Razorpay may deliver the same event more than once
+/// (it retries when we're slow), so the unique eventId is how a repeat is recognised and skipped.
+model WebhookEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  provider   String   @default("razorpay")
+  eventId    String   @unique @map("event_id") // Razorpay's x-razorpay-event-id header
+  type       String // e.g. "payment.captured"
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz
+
+  @@map("webhook_events")
+}

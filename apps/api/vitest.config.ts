@@ -20,6 +20,7 @@ export default defineConfig({
       // themselves, so no test ever reaches the real Razorpay.
       RAZORPAY_KEY_ID: "rzp_test_fake_for_tests",
       RAZORPAY_KEY_SECRET: "test-only-razorpay-secret",
+      RAZORPAY_WEBHOOK_SECRET: "test-only-webhook-secret",
     },
 
     // Runs once before all tests: creates the test database and its tables.

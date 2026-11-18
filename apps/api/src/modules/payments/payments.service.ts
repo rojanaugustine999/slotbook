@@ -86,15 +86,33 @@ export async function confirmDeposit(customerId: string, bookingId: string, inpu
     throw new HttpError(400, "INVALID_SIGNATURE", "The payment could not be verified");
   }
 
+  await recordPayment({ id: payment.id, businessId: payment.businessId, amountCents: payment.amountCents, bookingId }, input.razorpayPaymentId);
+
+  const booking = await prisma.booking.findUniqueOrThrow({ where: { id: bookingId }, select: paidBookingFields });
+  // Paid, but the hold had been released. Part 4 refunds these automatically.
+  if (booking.status !== "confirmed") throw holdExpired();
+  return booking;
+}
+
+/**
+ * Records that a deposit was paid. The ONE place this happens: the browser route
+ * (confirmDeposit) and Razorpay's webhook both end up here, in any order, possibly at the
+ * same moment, and possibly more than once. Only the first call writes anything.
+ * Callers must already have proved the payment is real (signature checked).
+ */
+export async function recordPayment(
+  payment: { id: string; businessId: string; amountCents: number; bookingId: string },
+  providerPaymentId: string,
+): Promise<{ firstTime: boolean; confirmed: boolean }> {
   const result = await prisma.$transaction(async (tx) => {
     // The guarded update is what makes this idempotent: of two requests racing here, the
     // second waits for the first's row lock, then sees "paid" and matches nothing.
     // "failed" is allowed too: the hold was released, but the money really did arrive.
     const { count } = await tx.payment.updateMany({
       where: { id: payment.id, status: { in: ["created", "failed"] } },
-      data: { status: "paid", providerPaymentId: input.razorpayPaymentId, paidAt: new Date() },
+      data: { status: "paid", providerPaymentId, paidAt: new Date() },
     });
-    if (count === 0) return { firstTime: false };
+    if (count === 0) return { firstTime: false, confirmed: false };
 
     // Money in: one append-only ledger row. Commission is recorded later, once the
     // deposit can no longer be refunded (part 4).
@@ -103,19 +121,16 @@ export async function confirmDeposit(customerId: string, bookingId: string, inpu
     });
 
     // Still held (even if the 15 minutes passed, nobody else could take a pending slot): confirm it.
-    const confirmed = await tx.booking.updateMany({ where: { id: bookingId, status: "pending" }, data: { status: "confirmed", holdExpiresAt: null } });
+    const confirmed = await tx.booking.updateMany({ where: { id: payment.bookingId, status: "pending" }, data: { status: "confirmed", holdExpiresAt: null } });
     return { firstTime: true, confirmed: confirmed.count === 1 };
   });
 
-  const booking = await prisma.booking.findUniqueOrThrow({ where: { id: bookingId }, select: paidBookingFields });
-
+  // Side effects only for the call that actually confirmed the booking, so reminders are never doubled.
   if (result.firstTime && result.confirmed) {
-    await runSafely("cancel hold release", () => cancelHoldRelease(bookingId));
-    await runSafely("schedule reminders", () => scheduleForBooking(bookingId));
+    await runSafely("cancel hold release", () => cancelHoldRelease(payment.bookingId));
+    await runSafely("schedule reminders", () => scheduleForBooking(payment.bookingId));
   }
-  // Paid, but the hold had been released. Part 4 refunds these automatically.
-  if (booking.status !== "confirmed") throw holdExpired();
-  return booking;
+  return result;
 }
 
 const paidBookingFields = { id: true, status: true, startsAt: true, endsAt: true, priceCents: true, holdExpiresAt: true } as const;

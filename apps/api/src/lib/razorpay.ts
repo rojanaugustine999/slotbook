@@ -50,11 +50,26 @@ export const razorpay = {
 export function verifyPaymentSignature(orderId: string, paymentId: string, signature: string): boolean {
   if (!env.RAZORPAY_KEY_SECRET) return false;
   const expected = createHmac("sha256", env.RAZORPAY_KEY_SECRET).update(`${orderId}|${paymentId}`).digest("hex");
+  return sameText(expected, signature);
+}
 
-  // timingSafeEqual takes the same time however many characters match. A normal ===
-  // stops at the first difference, and that timing can leak, character by character,
-  // what the right signature is.
+/**
+ * Checks the X-Razorpay-Signature header of a webhook. Razorpay signs the RAW request body
+ * with the webhook secret (a different secret from the API key's, set in the dashboard when
+ * adding the webhook). It must be the raw bytes: parsing the JSON and turning it back into
+ * text can change spacing or key order, and then the signature would never match.
+ */
+export function verifyWebhookSignature(rawBody: Buffer, signature: string): boolean {
+  if (!env.RAZORPAY_WEBHOOK_SECRET) return false;
+  const expected = createHmac("sha256", env.RAZORPAY_WEBHOOK_SECRET).update(rawBody).digest("hex");
+  return sameText(expected, signature);
+}
+
+// timingSafeEqual takes the same time however many characters match. A normal ===
+// stops at the first difference, and that timing can leak, character by character,
+// what the right signature is.
+function sameText(expected: string, received: string): boolean {
   const a = Buffer.from(expected, "utf8");
-  const b = Buffer.from(signature, "utf8");
+  const b = Buffer.from(received, "utf8");
   return a.length === b.length && timingSafeEqual(a, b);
 }

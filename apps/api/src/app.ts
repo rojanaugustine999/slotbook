@@ -14,6 +14,7 @@ import { availabilityRouter } from "./modules/availability/availability.routes.j
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { bookingsRouter, meRouter, ownerBookingsRouter } from "./modules/bookings/bookings.routes.js";
 import { businessesRouter, publicRouter } from "./modules/businesses/businesses.routes.js";
+import { webhooksRouter } from "./modules/payments/payments.routes.js";
 import { servicesRouter } from "./modules/services/services.routes.js";
 import { statsRouter } from "./modules/stats/stats.routes.js";
 import { staffRouter } from "./modules/staff/staff.routes.js";
@@ -80,6 +81,11 @@ export function createApp(options: AppOptions = {}) {
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
   });
+
+  // Razorpay's webhooks: before the rate limits (all of Razorpay's calls come from a few
+  // addresses, and a limited payment notice would be lost) and before express.json(),
+  // because the signature has to be checked against the raw body.
+  app.use("/webhooks", webhooksRouter);
 
   // Rate limits come BEFORE body parsing and routes, so a blocked request costs almost nothing.
   if (rateLimiting) {
