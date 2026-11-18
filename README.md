@@ -7,10 +7,12 @@
 
 Appointment booking for salons and clinics. Businesses set up services, staff and working
 hours; customers book open slots and get email reminders; owners see a calendar and stats.
+Salons can ask for a deposit, paid through Razorpay (test mode in the demo), and SlotBook
+keeps a ledger of what it owes each salon.
 
 A full-stack learning project built around real backend problems: authentication and
 authorization, timezones, working out availability, race conditions, background jobs,
-and running it all in production.
+taking payments safely, and running it all in production.
 
 ## Live demo
 
@@ -118,6 +120,13 @@ sequenceDiagram
 | A search for "%" matched every salon | Prisma's `contains` becomes SQL `LIKE` without escaping, so `%` and `_` acted as wildcards. They are escaped and treated as plain characters | `listPublicBusinesses()` in `modules/businesses/` |
 | Two new owners claim the same booking address at once | The unique index decides, not an "is it free?" lookup; the loser gets `SLUG_TAKEN`. Addresses the web app uses itself (`dashboard`, `assets`) are refused | `modules/businesses/`, `tests/businesses.test.ts` |
 | A salon whose booking page shows no times, and nobody knows why | The dashboard checks the three things that must line up (a service, someone who offers it, their hours) and shows the next missing step | `apps/web/src/dashboard/setup.ts` |
+| A customer claiming "I paid" without paying | The browser's word is never trusted: Razorpay signs `order|payment` with our secret (HMAC-SHA256, compared in constant time), and the amount comes from our own order | `lib/razorpay.ts`, `confirmDeposit()` in `modules/payments/` |
+| Paying, then closing the tab before the page reports back | Razorpay's webhook confirms the booking anyway. Its signature is checked against the raw body, before JSON parsing | `modules/payments/payments.webhook.ts` |
+| The browser and the webhook arriving together, or twice | One `recordPayment()` for both, with a guarded update: only the first writes anything. A test fires both at once and gets one ledger row | `payments.service.ts`, `tests/payments-webhook.test.ts` |
+| An unpaid hold blocking a slot forever | Released on time by a queue job, and also inside the next booking's locked transaction, so it works even with Redis down | `releaseExpiredHolds()` |
+| Refunding twice, or recording a refund that never happened | Decide in one transaction (paid → refunded, ledger row), then send to Razorpay from the queue with retries. Each retry first asks Razorpay whether a refund carrying our id already exists | `modules/payments/payments.refunds.ts` |
+| Money counted twice | The ledger is append-only (a trigger refuses updates and deletes), signs are checked, and a unique key allows one deposit, commission and refund row per payment | `migrations/*_payments`, `*_ledger_once_per_payment` |
+| Two payouts at once overdrawing a salon | A per-salon advisory lock: the second payout waits, then sees the lower balance | `recordPayout()` in `modules/admin/` |
 | Abuse and brute-forcing | A Redis fixed-window rate limiter with stricter limits on login and sign-up | `middleware/rateLimit.ts` |
 | Debugging production | One structured JSON log line per request with a request id; secrets are never logged | `lib/logger.ts`, `app.ts` |
 
@@ -129,10 +138,11 @@ sequenceDiagram
 | Database | PostgreSQL 17, Prisma 6 |
 | Queue and rate limiting | Redis 7, BullMQ |
 | Email | Resend (printed to the console when no key is set) |
+| Payments | Razorpay Orders, Checkout, refunds and webhooks, called with `fetch` (no SDK) |
 | Validation, dates | Zod 4, Luxon |
 | Logging | pino |
 | Web app | React 19, Vite, Tailwind 4, TanStack Query |
-| Tests | Vitest, Supertest (193 API tests against real Postgres and Redis, plus 81 web tests) |
+| Tests | Vitest, Supertest (273 API tests against real Postgres and Redis, plus 84 web tests) |
 | Packaging and CI | Docker, GitHub Actions |
 
 ## Getting started
@@ -222,6 +232,16 @@ Customers and owners sign in with `POST /auth/login` and send `Authorization: Be
 | Owner | `PATCH /businesses/:id/bookings/:bookingId/status` | Mark completed, no-show or cancelled |
 | Owner | `GET /businesses/:id/calendar` | Bookings grouped by day |
 | Owner | `GET /businesses/:id/stats` | Counts, no-show rate, revenue, per-day totals, top services |
+| Owner | `GET /businesses/:id/payments` | Deposit settings, what SlotBook owes the salon, and its ledger rows |
+| Customer | `GET /me/bookings/:id/payment` | Reopen the deposit payment for a held booking |
+| Customer | `POST /me/bookings/:id/pay` | Confirm a deposit with Razorpay's signed result |
+| Razorpay | `POST /webhooks/razorpay` | Payment and refund events, checked by signature |
+| Admin | `GET /admin/balances`, `/admin/refunds`, `/admin/audit` | Balances per salon, refunds needing attention, the audit log |
+| Admin | `POST /admin/businesses/:id/payouts`, `/admin/refunds/:id/retry` | Record a payout, retry a refund |
+
+With deposits on, `POST /b/:slug/bookings` answers with a `pending` booking held for 15 minutes
+and a `payment` object (order id, amount, public key id) for Razorpay Checkout. Admins are made
+from the command line only: `npm run admin:grant -- someone@example.com`.
 
 Errors always look like `{ "error": { "code": "...", "message": "..." } }`. Every response carries an `X-Request-Id` header.
 
@@ -240,6 +260,7 @@ apps/api/
     modules/                      one folder per feature: schema, service, routes
       auth/  businesses/  services/  staff/  working-hours/  time-off/
       availability/  bookings/  notifications/  stats/
+      payments/  admin/           deposits, refunds, webhooks, the ledger; SlotBook's admin
   tests/                          API tests and shared helpers
 Dockerfile                        production image
 docker-compose.yml                dev services, plus the full stack with --profile full
@@ -267,6 +288,8 @@ docs/brand/                       the logo, light and dark
 - [x] **Hardening:** the booking deadlock fix, zod 4 for a security advisory, and the database
   moved to Neon before Render's free one expired
 - [x] **Discovery:** the home page lists every ready salon, with search
+- [x] **Payments:** Razorpay deposits with 15-minute holds, webhooks, refunds by the
+  cancellation rule, SlotBook's 10% commission, an append-only ledger, the owner's Payments
+  tab and a super admin for payouts
 
-Ideas for later: Google Calendar sync, Stripe deposits to reduce no-shows,
-a waitlist, and a Claude-powered "book by chat" assistant.
+Ideas for later: Google Calendar sync, a waitlist, and a Claude-powered "book by chat" assistant.

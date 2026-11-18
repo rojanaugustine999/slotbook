@@ -20,6 +20,17 @@ I'm a UI/UX designer and front-end developer **learning backend development** wi
 - Double booking is prevented by the `no_double_booking` exclusion constraint
   (`prisma/migrations/*_booking_rules`). Don't replace it with app-only checks.
 
+## Payments (Razorpay, test mode)
+- Code lives in `modules/payments/` (holds, confirm, webhooks, refunds, rules) and `modules/admin/`.
+- Never trust the browser about money: confirm only after `verifyPaymentSignature` /
+  `verifyWebhookSignature`, and take amounts from our own `Payment` row.
+- Every "a deposit was paid" goes through `recordPayment()`; every refund or commission through
+  `settleDeposit()`. Both are idempotent (guarded updates); keep it that way.
+- `ledger_entries` is append-only (trigger) with one deposit/commission/refund row per payment.
+  Fix mistakes with a new row, never by editing or deleting one.
+- When one transaction touches both, lock the `payments` row before the `bookings` row (deadlocks).
+- Super admins are granted only with `npm run admin:grant -- email`, never through the API.
+
 ## Commands (run in apps/api)
 - `npm run dev`: start the API with reload
 - `npm test` / `npm run test:watch`
