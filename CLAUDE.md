@@ -30,6 +30,9 @@ I'm a UI/UX designer and front-end developer **learning backend development** wi
   Fix mistakes with a new row, never by editing or deleting one.
 - When one transaction touches both, lock the `payments` row before the `bookings` row (deadlocks).
 - Super admins are granted only with `npm run admin:grant -- email`, never through the API.
+  Admin rights stay narrow on purpose: money and suspension only, never another salon's data.
+- A suspended salon (`businesses.suspended_at`) must refuse every public path on the server
+  (`salonUnavailable()`): any new public route that reads a salon by slug has to check it too.
 
 ## Commands (run in apps/api)
 - `npm run dev`: start the API with reload

@@ -138,6 +138,28 @@ still confirmed. Razorpay can't reach `localhost`, so this only works on the dep
 A delivery answered `400` means the two secrets don't match. A `503` means
 `RAZORPAY_WEBHOOK_SECRET` isn't set on the API.
 
+## 4c. Making someone a SlotBook super admin
+
+The admin page (`/admin`: balances, payouts, refund retries, suspending salons) is only for
+accounts with super admin rights. There is deliberately no way to grant them through the API or
+the website, so nobody on the internet can make themselves admin.
+
+1. The person signs up on the live site as usual.
+2. **Locally:** `npm run admin:grant -- someone@example.com` in `apps/api` (add `--revoke` to
+   remove it). This changes the database in your local `.env`, so it only affects your local copy.
+3. **On the live site,** run SQL against the production database. With Neon: the project's
+   **SQL Editor**, then:
+
+   ```sql
+   UPDATE users SET is_platform_admin = true WHERE email = 'someone@example.com';
+   ```
+
+   Delete Neon's sample statements from the editor first: Run executes everything in it. The
+   editor doesn't say how many rows changed, so check with
+   `SELECT email, is_platform_admin FROM users WHERE is_platform_admin = true;`.
+4. Reload the site. Rights are checked in the database on every request, so the Admin link
+   appears at once (on a phone: Account, then "Open the admin page"). Removing them works at once too.
+
 ## 5. Things that catch people out
 
 **The refresh-token cookie across two websites.** If the frontend is on one site

@@ -137,6 +137,8 @@ sequenceDiagram
 | Refunding twice, or recording a refund that never happened | Decide in one transaction (paid → refunded, ledger row), then send to Razorpay from the queue with retries. Each retry first asks Razorpay whether a refund carrying our id already exists | `modules/payments/payments.refunds.ts` |
 | Money counted twice | The ledger is append-only (a trigger refuses updates and deletes), signs are checked, and a unique key allows one deposit, commission and refund row per payment | `migrations/*_payments`, `*_ledger_once_per_payment` |
 | Two payouts at once overdrawing a salon | A per-salon advisory lock: the second payout waits, then sees the lower balance | `recordPayout()` in `modules/admin/` |
+| "Sign out everywhere else" signing you out too | Refresh tokens are single-use, and a revoked one coming back looks like theft, which ends every session. So the other devices' tokens are deleted rather than revoked: they get a plain "please sign in" | `signOutOtherDevices()` in `modules/auth/`, `tests/account.test.ts` |
+| A suspended salon still bookable through the API | The salon page, open times and booking each refuse it on the server, not only in the web app; a test books it by calling the API directly | `salonUnavailable()` in `modules/businesses/`, `tests/salon-suspension.test.ts` |
 | Abuse and brute-forcing | A Redis fixed-window rate limiter with stricter limits on login and sign-up | `middleware/rateLimit.ts` |
 | Debugging production | One structured JSON log line per request with a request id; secrets are never logged | `lib/logger.ts`, `app.ts` |
 
@@ -152,7 +154,7 @@ sequenceDiagram
 | Validation, dates | Zod 4, Luxon |
 | Logging | pino |
 | Web app | React 19, Vite, Tailwind 4, TanStack Query |
-| Tests | Vitest, Supertest (273 API tests against real Postgres and Redis, plus 84 web tests) |
+| Tests | Vitest, Supertest (303 API tests against real Postgres and Redis, plus 86 web tests) |
 | Packaging and CI | Docker, GitHub Actions |
 
 ## Getting started
@@ -189,8 +191,13 @@ Deploying it: see [docs/DEPLOY.md](docs/DEPLOY.md).
 
 - the **home page** (`/`): every salon that's ready to take bookings, with a search box that
   matches a salon's name, its area or a service it offers;
-- the customer **booking page** (`/glow-salon`: pick a service, person, day and time, then confirm)
-  and **My bookings** (`/me`, with cancel);
+- the customer **booking page** (`/glow-salon`: pick a service, person, day and time, then confirm).
+  When the salon takes a deposit, the summary splits the price, the button says what tapping costs
+  ("Pay ₹100 and book"), and Razorpay Checkout opens; a suspended salon says it isn't taking bookings;
+- **My bookings** (`/me`): cancel (saying first whether the deposit comes back), pay a held booking's
+  deposit, and a line showing what salons see of you, with a nudge if there's no phone number;
+- **Your account** (`/account`): name and phone (required at sign-up, changeable, not removable),
+  change password, and "sign out everywhere else";
 - the owner **weekly calendar** (`/dashboard`): a week grid with one colour per staff member,
   simultaneous bookings side by side, a "now" line, filters, and a details dialog to cancel an
   upcoming booking or mark a past one completed or a no-show. On a phone it becomes a day-by-day list.
@@ -203,6 +210,13 @@ Deploying it: see [docs/DEPLOY.md](docs/DEPLOY.md).
   prices typed in rupees and stored as whole paise) and the **Staff** tab (who offers what, weekly
   hours with breaks, time off). A checklist shows what's still missing before the salon can take a
   booking, and the booking link sits under the salon's name with a Copy button.
+- the owner **Payments** tab: deposit percentage and free-cancellation window, what SlotBook owes
+  the salon, and every deposit, refund, commission and payout behind that number;
+- the owner **Settings** tab: name, street address, minimum notice and how far ahead people can book.
+  The booking page address and the timezone each have a warning and a confirmation, because one
+  breaks shared links and the other changes what working hours mean;
+- the **SlotBook admin** page (`/admin`, super admins only): what each salon is owed and recording
+  payouts, refunds that need a retry, suspending or restoring a salon, and the audit log.
 
 To try the owner side locally, sign in as `owner@slotbook.test` (created by `npm run db:seed`).
 
@@ -305,5 +319,7 @@ docs/brand/                       the logo, light and dark
 - [x] **Payments:** Razorpay deposits with 15-minute holds, webhooks, refunds by the
   cancellation rule, SlotBook's 10% commission, an append-only ledger, the owner's Payments
   tab and a super admin for payouts
+- [x] **Accounts and control:** an Account page (phone, password, sign out elsewhere), phone
+  numbers required at sign-up, the owner's Settings tab, and suspending a salon from the admin page
 
 Ideas for later: Google Calendar sync, a waitlist, and a Claude-powered "book by chat" assistant.
