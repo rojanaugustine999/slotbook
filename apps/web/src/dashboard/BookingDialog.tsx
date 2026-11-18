@@ -42,6 +42,7 @@ export function BookingDialog({ booking, businessId, timezone, now, onClose }: P
             <Row label="When" value={formatDayLong(localDate(booking.startsAt, timezone))} extra={formatTimeRange(booking.startsAt, booking.endsAt, timezone)} />
             <Row label="With" value={booking.staff.name} />
             <Row label="Price" value={formatPrice(booking.priceCents)} />
+            {booking.payment && <Row label="Deposit" value={`${formatPrice(booking.payment.amountCents)} ${DEPOSIT_STATE[booking.payment.status]}`} />}
             <div className="border-t border-line pt-2.5">
               <Row label="Customer" value={booking.customer.name} />
             </div>
@@ -67,6 +68,15 @@ export function BookingDialog({ booking, businessId, timezone, now, onClose }: P
             </div>
             {booking.notes && <Row label="Notes" value={booking.notes} />}
           </dl>
+
+          {/* Say what happens to the money BEFORE the owner clicks (same rule as the API's payments.rules.ts). */}
+          {active && booking.payment?.status === "paid" && (
+            <p className="mt-4 text-sm text-ink-2">
+              {started
+                ? `Completed or no-show: you keep the ${formatPrice(booking.payment.amountCents)} deposit.`
+                : `Cancelling refunds the customer's ${formatPrice(booking.payment.amountCents)} deposit.`}
+            </p>
+          )}
 
           {change.isError && <Notice tone="error" className="mt-4">{describeError(change.error)}</Notice>}
 
@@ -105,3 +115,5 @@ function Row({ label, value, extra }: { label: string; value: string; extra?: st
     </div>
   );
 }
+
+const DEPOSIT_STATE = { created: "awaiting payment", paid: "paid", failed: "not paid", refunded: "refunded" } as const;

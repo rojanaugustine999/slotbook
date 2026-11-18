@@ -16,18 +16,23 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  name         String
-  phone        String?
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  id              String   @id @default(uuid()) @db.Uuid
+  email           String   @unique
+  passwordHash    String   @map("password_hash")
+  name            String
+  phone           String?
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  // The SlotBook super admin (the platform, not a salon). Never set through the API:
+  // only a server-side script can grant it (see scripts/grant-admin.ts).
+  isPlatformAdmin Boolean  @default(false) @map("is_platform_admin")
 
   ownedBusinesses Business[]
   staffProfiles   Staff[]
   bookings        Booking[]      @relation("CustomerBookings")
   refreshTokens   RefreshToken[]
+  payoutsRecorded Payout[]
+  auditEntries    AuditLog[]
 
   @@map("users")
 }
@@ -56,13 +61,20 @@ model Business {
   address          String?
   minNoticeMinutes Int      @default(60) @map("min_notice_minutes")
   maxAdvanceDays   Int      @default(60) @map("max_advance_days")
+  // Deposits: the share of a service's price paid when booking. null = no deposit.
+  depositPercent   Int?     @map("deposit_percent")
+  // Cancelling at least this many hours before the start refunds the deposit; later, the salon keeps it.
+  freeCancelHours  Int      @default(24) @map("free_cancel_hours")
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  owner    User      @relation(fields: [ownerId], references: [id])
-  staff    Staff[]
-  services Service[]
-  bookings Booking[]
+  owner         User          @relation(fields: [ownerId], references: [id])
+  staff         Staff[]
+  services      Service[]
+  bookings      Booking[]
+  payments      Payment[]
+  ledgerEntries LedgerEntry[]
+  payouts       Payout[]
 
   @@index([ownerId])
   @@map("businesses")
@@ -76,8 +88,8 @@ model Staff {
   active     Boolean  @default(true)
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  business     Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  user         User?           @relation(fields: [userId], references: [id])
+  business     Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user         User?          @relation(fields: [userId], references: [id])
   services     StaffService[]
   workingHours WorkingHours[]
   timeOff      TimeOff[]
@@ -154,31 +166,163 @@ enum BookingStatus {
 }
 
 model Booking {
-  id         String        @id @default(uuid()) @db.Uuid
-  businessId String        @map("business_id") @db.Uuid
-  staffId    String        @map("staff_id") @db.Uuid
-  serviceId  String        @map("service_id") @db.Uuid
-  customerId String        @map("customer_id") @db.Uuid
-  startsAt   DateTime      @map("starts_at") @db.Timestamptz
-  endsAt     DateTime      @map("ends_at") @db.Timestamptz // includes the service buffer
+  id            String        @id @default(uuid()) @db.Uuid
+  businessId    String        @map("business_id") @db.Uuid
+  staffId       String        @map("staff_id") @db.Uuid
+  serviceId     String        @map("service_id") @db.Uuid
+  customerId    String        @map("customer_id") @db.Uuid
+  startsAt      DateTime      @map("starts_at") @db.Timestamptz
+  endsAt        DateTime      @map("ends_at") @db.Timestamptz // includes the service buffer
   // A snapshot of the service's price when the booking was made. Copied, not looked up,
   // so changing a price later doesn't rewrite past bookings or last month's revenue.
-  priceCents Int           @map("price_cents")
-  status     BookingStatus @default(confirmed)
-  notes      String?
-  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt  DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  priceCents    Int           @map("price_cents")
+  status        BookingStatus @default(confirmed)
+  // Set while a "pending" booking waits for its deposit. After this moment the hold is
+  // void: the slot is offered again and the booking is cancelled (see releaseExpiredHolds).
+  holdExpiresAt DateTime?     @map("hold_expires_at") @db.Timestamptz
+  notes         String?
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
   business      Business       @relation(fields: [businessId], references: [id])
   staff         Staff          @relation(fields: [staffId], references: [id])
   service       Service        @relation(fields: [serviceId], references: [id])
   customer      User           @relation("CustomerBookings", fields: [customerId], references: [id])
   notifications Notification[]
+  payment       Payment?
 
   @@index([staffId, startsAt])
   @@index([businessId, startsAt])
   @@index([customerId])
   @@map("bookings")
+}
+
+// ─── Payments ────────────────────────────────────────────────────────────────
+// Money is in paise (integers), like priceCents everywhere else.
+// SlotBook collects every deposit into its own Razorpay account; what each salon is
+// owed is worked out from the ledger below, never stored as a single editable number.
+// ──────────────────────────────────────────────────────────────────────────────
+
+enum PaymentStatus {
+  created // a Razorpay order exists; the customer hasn't paid yet
+  paid
+  failed
+  refunded
+}
+
+// One deposit per booking.
+model Payment {
+  id                String        @id @default(uuid()) @db.Uuid
+  bookingId         String        @unique @map("booking_id") @db.Uuid
+  businessId        String        @map("business_id") @db.Uuid
+  provider          String        @default("razorpay")
+  // Razorpay's ids. Unique, so the same order or payment can never be recorded twice.
+  providerOrderId   String        @unique @map("provider_order_id")
+  providerPaymentId String?       @unique @map("provider_payment_id")
+  amountCents       Int           @map("amount_cents")
+  currency          String        @default("INR")
+  status            PaymentStatus @default(created)
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  paidAt            DateTime?     @map("paid_at") @db.Timestamptz
+
+  booking       Booking       @relation(fields: [bookingId], references: [id])
+  business      Business      @relation(fields: [businessId], references: [id])
+  refunds       Refund[]
+  ledgerEntries LedgerEntry[]
+
+  @@index([businessId, createdAt])
+  @@map("payments")
+}
+
+enum RefundStatus {
+  pending // asked Razorpay; waiting for it to confirm
+  processed
+  failed
+}
+
+model Refund {
+  id               String       @id @default(uuid()) @db.Uuid
+  paymentId        String       @map("payment_id") @db.Uuid
+  providerRefundId String?      @unique @map("provider_refund_id")
+  amountCents      Int          @map("amount_cents")
+  status           RefundStatus @default(pending)
+  reason           String?
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  processedAt      DateTime?    @map("processed_at") @db.Timestamptz
+
+  payment       Payment       @relation(fields: [paymentId], references: [id])
+  ledgerEntries LedgerEntry[]
+
+  @@index([paymentId])
+  @@map("refunds")
+}
+
+enum LedgerEntryType {
+  deposit // a customer's deposit, owed to the salon (+)
+  commission // SlotBook's share of a deposit the salon keeps (-)
+  refund // a deposit given back to the customer (-)
+  payout // money SlotBook has paid out to the salon (-)
+}
+
+// Every money movement is one row that is never edited or deleted (the database
+// refuses both; see the payments migration). A salon's balance is the sum of its rows.
+model LedgerEntry {
+  id          String          @id @default(uuid()) @db.Uuid
+  businessId  String          @map("business_id") @db.Uuid
+  type        LedgerEntryType
+  // Signed, from the salon's point of view: + is owed to them, - reduces what they're owed.
+  amountCents Int             @map("amount_cents")
+  paymentId   String?         @map("payment_id") @db.Uuid
+  refundId    String?         @map("refund_id") @db.Uuid
+  payoutId    String?         @map("payout_id") @db.Uuid
+  note        String?
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  business Business @relation(fields: [businessId], references: [id])
+  payment  Payment? @relation(fields: [paymentId], references: [id])
+  refund   Refund?  @relation(fields: [refundId], references: [id])
+  payout   Payout?  @relation(fields: [payoutId], references: [id])
+
+  // At most ONE deposit, ONE commission and ONE refund row per payment, enforced by the
+  // database: however often a cancel, a retry or a webhook runs, money is counted once.
+  // (Payout rows have no paymentId, and Postgres treats NULLs as distinct, so they're unaffected.)
+  @@unique([paymentId, type])
+  @@index([businessId, createdAt])
+  @@map("ledger_entries")
+}
+
+// SlotBook paying a salon what it's owed (outside the app, e.g. a bank transfer),
+// recorded by a super admin.
+model Payout {
+  id           String   @id @default(uuid()) @db.Uuid
+  businessId   String   @map("business_id") @db.Uuid
+  amountCents  Int      @map("amount_cents")
+  reference    String? // e.g. the bank transfer's reference
+  recordedById String   @map("recorded_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  business      Business      @relation(fields: [businessId], references: [id])
+  recordedBy    User          @relation(fields: [recordedById], references: [id])
+  ledgerEntries LedgerEntry[]
+
+  @@index([businessId, createdAt])
+  @@map("payouts")
+}
+
+// Who did what, for actions only the super admin can take.
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String   @map("actor_id") @db.Uuid
+  action     String // e.g. "refund.issue", "payout.record", "business.pause"
+  targetType String   @map("target_type")
+  targetId   String?  @map("target_id")
+  details    Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([createdAt])
+  @@map("audit_log")
 }
 
 enum NotificationType {
@@ -213,4 +357,16 @@ model Notification {
 
   @@index([status, sendAt])
   @@map("notifications")
+}
+
+/// Every webhook event we have handled. Razorpay may deliver the same event more than once
+/// (it retries when we're slow), so the unique eventId is how a repeat is recognised and skipped.
+model WebhookEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  provider   String   @default("razorpay")
+  eventId    String   @unique @map("event_id") // Razorpay's x-razorpay-event-id header
+  type       String // e.g. "payment.captured"
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz
+
+  @@map("webhook_events")
 }

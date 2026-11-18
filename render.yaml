@@ -56,3 +56,11 @@ services:
       # The web app's address, like https://slotbook.vercel.app. Render asks for it when the Blueprint is created.
       - key: CORS_ORIGIN
         sync: false
+      # Razorpay TEST keys (rzp_test_...) and the webhook secret (docs/DEPLOY.md, sections 1 and 4b).
+      # Without them the API runs fine, just without deposits. Never put the values in this file.
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false

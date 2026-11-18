@@ -10,10 +10,12 @@ import { logger as defaultLogger } from "./lib/logger.js";
 import { requireAuth } from "./middleware/auth.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { limiters } from "./middleware/rateLimit.js";
+import { adminRouter } from "./modules/admin/admin.routes.js";
 import { availabilityRouter } from "./modules/availability/availability.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { bookingsRouter, meRouter, ownerBookingsRouter } from "./modules/bookings/bookings.routes.js";
 import { businessesRouter, publicRouter } from "./modules/businesses/businesses.routes.js";
+import { ownerPaymentsRouter, webhooksRouter } from "./modules/payments/payments.routes.js";
 import { servicesRouter } from "./modules/services/services.routes.js";
 import { statsRouter } from "./modules/stats/stats.routes.js";
 import { staffRouter } from "./modules/staff/staff.routes.js";
@@ -81,6 +83,11 @@ export function createApp(options: AppOptions = {}) {
     res.json({ status: "ok" });
   });
 
+  // Razorpay's webhooks: before the rate limits (all of Razorpay's calls come from a few
+  // addresses, and a limited payment notice would be lost) and before express.json(),
+  // because the signature has to be checked against the raw body.
+  app.use("/webhooks", webhooksRouter);
+
   // Rate limits come BEFORE body parsing and routes, so a blocked request costs almost nothing.
   if (rateLimiting) {
     app.use(limiters.global);
@@ -102,10 +109,12 @@ export function createApp(options: AppOptions = {}) {
   app.use("/businesses", ownerBookingsRouter); // adds /businesses/:id/bookings
   app.use("/businesses", statsRouter); // adds /businesses/:id/stats
   app.use("/businesses", timeOffRouter); // adds /businesses/:id/staff/:staffId/time-off
+  app.use("/businesses", ownerPaymentsRouter); // adds /businesses/:id/payments
   app.use("/b", publicRouter);
   app.use("/b", availabilityRouter); // adds /b/:slug/availability
   app.use("/b", bookingsRouter); // adds /b/:slug/bookings
   app.use("/me", meRouter); // adds /me/bookings
+  app.use("/admin", adminRouter); // SlotBook staff only (platform admins)
 
   // Order matters: these two must come after all routes.
   app.use(notFoundHandler);

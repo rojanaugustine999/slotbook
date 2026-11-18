@@ -78,6 +78,9 @@ repository.
 | `TRUST_PROXY` | yes | `1` on hosts that put one proxy in front of your app (Render, Railway and most others). Without it every visitor looks like the same IP and the rate limiter blocks everyone together. Never set it higher than the real number of proxies |
 | `RESEND_API_KEY` | for real emails | A key from resend.com. Without it, emails are only written to the log |
 | `MAIL_FROM` | with the key | A sender address your Resend account is allowed to use |
+| `RAZORPAY_KEY_ID` | for deposits | From Razorpay, **Test Mode** > Account & Settings > API Keys. Starts with `rzp_test_`. Without both keys, salons take no deposits |
+| `RAZORPAY_KEY_SECRET` | with the id | The secret shown next to it. Shown only once, so keep it safe |
+| `RAZORPAY_WEBHOOK_SECRET` | for deposits | Any long random string, typed both here and in the Razorpay webhook (section 4b) |
 | `LOG_LEVEL` | no | `info` by default |
 | `PORT` | no | Hosts usually set this themselves. The app reads it |
 
@@ -118,6 +121,23 @@ REST client, and open `https://your-api.example.com/b/<your-slug>` in a browser.
 The demo seed (`npm run db:seed`) is for development only and is not in the production image.
 Create real data through the API instead.
 
+## 4b. Razorpay webhook (deposits)
+
+When a customer pays and then closes the tab before the page reports back, only Razorpay
+knows the deposit arrived. The webhook makes Razorpay tell the API directly, so that booking is
+still confirmed. Razorpay can't reach `localhost`, so this only works on the deployed API.
+
+1. In the Razorpay dashboard, in **Test Mode**: Account & Settings > Webhooks > Add New Webhook.
+2. **Webhook URL:** `https://<your-api-address>/webhooks/razorpay`
+3. **Secret:** the same value as `RAZORPAY_WEBHOOK_SECRET` on the API.
+4. **Active events:** `payment.captured` and `order.paid`. Nothing else is needed; other events
+   are answered and ignored.
+5. Save, then make a test booking and pay. The webhook's page in the dashboard should list the
+   deliveries with response `200`.
+
+A delivery answered `400` means the two secrets don't match. A `503` means
+`RAZORPAY_WEBHOOK_SECRET` isn't set on the API.
+
 ## 5. Things that catch people out
 
 **The refresh-token cookie across two websites.** If the frontend is on one site
@@ -145,6 +165,7 @@ bookings cannot.
 ## 6. Before you share the link
 
 - `JWT_ACCESS_SECRET` is a long random value that exists only in the host's settings.
+- The Razorpay keys are **test** keys (`rzp_test_...`) unless you really mean to take money.
 - `.env` files are not committed (they are already in `.gitignore`).
 - `CORS_ORIGIN` is your real frontend address, not `localhost`.
 - Run `npm audit` and read the result. `zod` was upgraded to 4 to fix a high-severity advisory

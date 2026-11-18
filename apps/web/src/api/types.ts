@@ -6,6 +6,37 @@ export interface User {
   email: string;
   name: string;
   phone: string | null;
+  isPlatformAdmin?: boolean; // SlotBook staff. Only decides whether the Admin link shows
+}
+
+// ── Super admin: /admin ─────────────────────────────────────────────────────
+export interface SalonBalance {
+  id: string;
+  name: string;
+  slug: string;
+  // Each ledger type added up, in paise: deposit is +, the rest are − (what reduces the balance).
+  totals: { deposit: number; commission: number; refund: number; payout: number };
+  balanceCents: number; // what SlotBook owes the salon now
+}
+
+export interface OpenRefund {
+  id: string;
+  amountCents: number;
+  status: "pending" | "failed";
+  reason: string | null;
+  providerRefundId: string | null;
+  createdAt: string;
+  payment: { business: { name: string; slug: string } };
+}
+
+export interface AuditEntry {
+  id: string;
+  action: string; // "payout.record", "refund.retry"
+  targetType: string;
+  targetId: string | null;
+  details: Record<string, unknown> | null;
+  createdAt: string;
+  actor: { name: string; email: string };
 }
 
 // ── Public salon page: GET /b/:slug ─────────────────────────────────────────
@@ -28,6 +59,8 @@ export interface PublicBusiness {
   slug: string;
   timezone: string; // IANA name, e.g. "Asia/Kolkata"
   address: string | null;
+  depositPercent: number | null; // null: no deposit, everything is paid at the salon
+  freeCancelHours: number; // cancel at least this many hours ahead to get the deposit back
   services: PublicService[];
   staff: PublicStaff[];
 }
@@ -64,7 +97,26 @@ export interface Booking {
   notes: string | null;
   service: { id: string; name: string; durationMin: number; priceCents: number };
   staff: { id: string; name: string };
-  business: { name: string; slug: string; timezone: string };
+  business: { name: string; slug: string; timezone: string; freeCancelHours: number };
+  holdExpiresAt: string | null; // set while the slot is held for an unpaid deposit
+  payment: { amountCents: number; currency: string; status: PaymentStatus } | null;
+}
+
+export type PaymentStatus = "created" | "paid" | "failed" | "refunded";
+
+// What the API returns when a deposit is due: everything Razorpay Checkout needs.
+export interface DepositCheckout {
+  orderId: string;
+  amountCents: number;
+  currency: string;
+  keyId: string; // Razorpay's PUBLIC key id. The secret never leaves the server.
+}
+
+// What Razorpay Checkout hands the browser after a payment. Only claims until the API checks the signature.
+export interface RazorpayResult {
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
 }
 
 // ── Owner side ──────────────────────────────────────────────────────────────
@@ -142,4 +194,27 @@ export interface CreateBookingInput {
   staffId?: string; // leave out for "anyone"
   startsAt: string; // ISO with a timezone offset
   notes?: string;
+}
+
+// ── Owner's Payments tab: GET /businesses/:id/payments ──────────────────────
+export type LedgerEntryType = "deposit" | "commission" | "refund" | "payout";
+
+export interface OwnerPayments {
+  settings: {
+    depositPercent: number | null; // null: no deposit
+    freeCancelHours: number;
+    paymentsAvailable: boolean; // false: the server has no Razorpay keys, so nothing is charged
+    commissionPercent: number;
+  };
+  // Each type added up, in paise, from the salon's side: deposit +, the others −.
+  totals: Record<LedgerEntryType, number>;
+  balanceCents: number; // what SlotBook owes the salon now
+  entries: {
+    id: string;
+    type: LedgerEntryType;
+    amountCents: number; // signed, like the totals
+    createdAt: string;
+    booking: { id: string; startsAt: string; service: { name: string }; customer: { name: string } } | null;
+    payoutReference: string | null;
+  }[];
 }

@@ -27,6 +27,9 @@ export const publicUserSelect = {
   name: true,
   phone: true,
   createdAt: true,
+  // Only so the web app can show an "Admin" link. The server never trusts it: every admin
+  // request checks the database again (admin.service.ts).
+  isPlatformAdmin: true,
 } as const;
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");

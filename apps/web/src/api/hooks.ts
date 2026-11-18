@@ -1,7 +1,8 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthProvider";
+import { payDeposit } from "../lib/razorpay";
 import { api } from "./client";
-import type { Availability, Booking, Calendar, CreateBookingInput, OwnedBusiness, OwnerBooking, OwnerService, OwnerStatusChange, PublicBusiness, PublicBusinessCard, ServiceInput, StaffMember, Stats, TimeOff } from "./types";
+import type { AuditEntry, Availability, Booking, Calendar, CreateBookingInput, DepositCheckout, OwnedBusiness, OwnerBooking, OwnerService, OpenRefund, OwnerPayments, OwnerStatusChange, PublicBusiness, PublicBusinessCard, RazorpayResult, SalonBalance, ServiceInput, StaffMember, Stats, TimeOff } from "./types";
 import type { HoursBlock } from "../dashboard/hours";
 
 // ─── Data hooks ──────────────────────────────────────────────────────────────
@@ -61,11 +62,37 @@ export function useMyBookings() {
 export function useCreateBooking(slug: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: CreateBookingInput) => (await api<{ booking: Booking }>(`/b/${encodeURIComponent(slug)}/bookings`, { method: "POST", body: input })).booking,
+    // payment is null when no deposit is due; otherwise the booking is only held until it's paid.
+    mutationFn: async (input: CreateBookingInput) =>
+      api<{ booking: Booking; payment: DepositCheckout | null }>(`/b/${encodeURIComponent(slug)}/bookings`, { method: "POST", body: input }),
     // Whatever happened, the open slots have probably changed.
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ["availability", slug] });
       void queryClient.invalidateQueries({ queryKey: ["my-bookings"] });
+    },
+  });
+}
+
+/**
+ * Pays a held booking's deposit, start to finish:
+ *   1. the order: passed in right after booking, or fetched again (e.g. from "My bookings");
+ *   2. Razorpay's window, where the customer pays;
+ *   3. our API, which checks Razorpay's signature and only then confirms the booking.
+ * Rejects with CheckoutClosed when the customer just closes the window.
+ */
+export function usePayDeposit() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async ({ booking, checkout }: { booking: Booking; checkout?: DepositCheckout }) => {
+      const order = checkout ?? (await api<{ payment: DepositCheckout }>(`/me/bookings/${booking.id}/payment`)).payment;
+      const result: RazorpayResult = await payDeposit(order, { description: `${booking.service.name} deposit`, name: user?.name, email: user?.email });
+      const confirmed = (await api<{ booking: Pick<Booking, "id" | "status"> }>(`/me/bookings/${booking.id}/pay`, { method: "POST", body: result })).booking;
+      return { status: confirmed.status, order };
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["my-bookings"] });
+      void queryClient.invalidateQueries({ queryKey: ["availability"] });
     },
   });
 }
@@ -293,5 +320,56 @@ export function useStats(businessId: string, from: string, to: string, enabled =
     staleTime: 30_000,
     placeholderData: keepPreviousData, // while a new range loads, keep the old numbers on screen
     queryFn: async () => (await api<{ stats: Stats }>(`/businesses/${businessId}/stats?from=${from}&to=${to}`)).stats,
+  });
+}
+
+// ─── Super admin hooks (/admin) ──────────────────────────────────────────────
+
+export function useAdminBalances() {
+  const { status } = useAuth();
+  return useQuery({ queryKey: ["admin", "balances"], enabled: status === "signedIn", queryFn: async () => (await api<{ balances: SalonBalance[] }>("/admin/balances")).balances });
+}
+
+export function useOpenRefunds() {
+  return useQuery({ queryKey: ["admin", "refunds"], queryFn: async () => (await api<{ refunds: OpenRefund[] }>("/admin/refunds")).refunds });
+}
+
+export function useAuditLog() {
+  return useQuery({ queryKey: ["admin", "audit"], queryFn: async () => (await api<{ entries: AuditEntry[] }>("/admin/audit")).entries });
+}
+
+// Every admin change can move balances, refunds and the audit log, so all three refresh.
+function useAdminMutation<TInput>(mutationFn: (input: TInput) => Promise<unknown>) {
+  const queryClient = useQueryClient();
+  return useMutation({ mutationFn, onSettled: () => void queryClient.invalidateQueries({ queryKey: ["admin"] }) });
+}
+
+export function useRecordPayout() {
+  return useAdminMutation(({ businessId, amountCents, reference }: { businessId: string; amountCents: number; reference?: string }) =>
+    api(`/admin/businesses/${businessId}/payouts`, { method: "POST", body: { amountCents, reference } }),
+  );
+}
+
+export function useRetryRefund() {
+  return useAdminMutation((refundId: string) => api(`/admin/refunds/${refundId}/retry`, { method: "POST" }));
+}
+
+// ─── Owner: Payments tab ─────────────────────────────────────────────────────
+
+export function useOwnerPayments(businessId: string) {
+  return useQuery({
+    queryKey: ["owner-payments", businessId],
+    queryFn: async () => api<OwnerPayments>(`/businesses/${businessId}/payments`),
+  });
+}
+
+export function useSaveDepositSettings(businessId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { depositPercent: number | null; freeCancelHours: number }) => api(`/businesses/${businessId}`, { method: "PATCH", body: input }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["owner-payments", businessId] });
+      void queryClient.invalidateQueries({ queryKey: ["business"] }); // the public booking page shows the deposit
+    },
   });
 }

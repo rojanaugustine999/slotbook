@@ -3,6 +3,8 @@ import { z } from "zod";
 import { currentUserId, requireAuth } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
 import { changeStatusSchema, createBookingSchema, ownerBookingsQuerySchema, rescheduleBookingSchema } from "./bookings.schema.js";
+import { confirmPaymentSchema } from "../payments/payments.schema.js";
+import * as payments from "../payments/payments.service.js";
 import * as bookings from "./bookings.service.js";
 
 const idParam = z.string().uuid();
@@ -15,8 +17,9 @@ export const bookingsRouter = Router();
 // other /b routes (salon page, availability) must stay open to everyone.
 bookingsRouter.post("/:slug/bookings", requireAuth, validateBody(createBookingSchema), async (req, res) => {
   const slug = String(req.params.slug); // the salon's name in the URL
-  const booking = await bookings.createBooking(slug, currentUserId(req), req.body);
-  res.status(201).json({ booking });
+  // payment is null when no deposit is due; otherwise it holds what Razorpay Checkout needs.
+  const { booking, payment } = await bookings.createBooking(slug, currentUserId(req), req.body);
+  res.status(201).json({ booking, payment });
 });
 
 // ── Mounted at /me: the logged-in customer's own bookings ──────────────────
@@ -34,6 +37,19 @@ meRouter.get("/bookings", async (req, res) => {
 meRouter.post("/bookings/:bookingId/cancel", async (req, res) => {
   const bookingId = idParam.parse(req.params.bookingId);
   res.json({ booking: await bookings.cancelMyBooking(currentUserId(req), bookingId) });
+});
+
+// GET /me/bookings/:bookingId/payment  → what Razorpay Checkout needs to pay a held booking
+meRouter.get("/bookings/:bookingId/payment", async (req, res) => {
+  const bookingId = idParam.parse(req.params.bookingId);
+  res.json({ payment: await payments.getOpenDeposit(currentUserId(req), bookingId) });
+});
+
+// POST /me/bookings/:bookingId/pay  { razorpayOrderId, razorpayPaymentId, razorpaySignature }
+// Called by the browser after Razorpay Checkout succeeds. The server checks the signature.
+meRouter.post("/bookings/:bookingId/pay", validateBody(confirmPaymentSchema), async (req, res) => {
+  const bookingId = idParam.parse(req.params.bookingId);
+  res.json({ booking: await payments.confirmDeposit(currentUserId(req), bookingId, req.body) });
 });
 
 // POST /me/bookings/:bookingId/reschedule  { startsAt, staffId? }

@@ -159,11 +159,12 @@ export function DashboardLayout() {
               <NewSalonLink />
             </div>
             <SetupChecklist key={business.id} business={business} />
-            <nav className="mb-6 flex gap-1 border-b border-line" aria-label="Dashboard sections">
+            <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-line" aria-label="Dashboard sections">
               <TabLink to="calendar">Calendar</TabLink>
               <TabLink to="stats">Stats</TabLink>
               <TabLink to="services">Services</TabLink>
               <TabLink to="staff">Staff</TabLink>
+              <TabLink to="payments">Payments</TabLink>
             </nav>
             <Outlet context={{ business } satisfies DashboardContext} />
           </div>

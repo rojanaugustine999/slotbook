@@ -29,6 +29,7 @@ export async function getPublicAvailability(slug: string, query: AvailabilityQue
 
   // The whole local day as two real moments (00:00 to 24:00 in the salon's timezone).
   const wholeDay = toRange(query.date, business.timezone, 0, 1440);
+  const now = new Date();
 
   // Staff who can do this service, each with only the rows that matter for this day.
   const staff = await prisma.staff.findMany({
@@ -52,6 +53,8 @@ export async function getPublicAvailability(slug: string, query: AvailabilityQue
       bookings: {
         where: {
           status: { in: ["pending", "confirmed"] },
+          // An unpaid hold whose time ran out doesn't block the slot, even before it's released.
+          OR: [{ holdExpiresAt: null }, { holdExpiresAt: { gt: now } }],
           ...(options.ignoreBookingId ? { id: { not: options.ignoreBookingId } } : {}),
           startsAt: { lt: wholeDay.endsAt },
           endsAt: { gt: wholeDay.startsAt },
@@ -63,7 +66,6 @@ export async function getPublicAvailability(slug: string, query: AvailabilityQue
 
   if (query.staffId && staff.length === 0) throw notFound("Staff member not found for this service");
 
-  const now = new Date();
   const result = { date: query.date, timezone: business.timezone, slots: [] as { time: string; staffIds: string[] }[] };
 
   // Salons only take bookings a limited number of days ahead (maxAdvanceDays).

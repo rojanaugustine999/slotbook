@@ -3,15 +3,17 @@ import { Link, useParams } from "react-router";
 import { useAuthDialog } from "../auth/AuthDialog";
 import { useAuth } from "../auth/AuthProvider";
 import { describeError } from "../api/client";
-import { useAvailability, useBusiness, useCreateBooking } from "../api/hooks";
-import type { Booking, PublicBusiness } from "../api/types";
+import { useAvailability, useBusiness, useCancelBooking, useCreateBooking, usePayDeposit } from "../api/hooks";
+import type { Booking, DepositCheckout, PublicBusiness } from "../api/types";
 import { formatWhen, toStartsAt, upcomingDays } from "../lib/dates";
+import { depositFor } from "../lib/money";
+import { CheckoutClosed } from "../lib/razorpay";
 import { Notice } from "../ui/Notice";
 import { Spinner } from "../ui/Button";
 import { WakingUp } from "../ui/WakingUp";
 import { ANYONE, ServicePicker, StaffPicker } from "./Pickers";
 import { DayStrip, SlotPicker } from "./SlotPicker";
-import { ConfirmedView, MobileConfirmBar, Summary } from "./Summary";
+import { ConfirmedView, HeldView, MobileConfirmBar, Summary } from "./Summary";
 
 export function BookingPage() {
   const { slug = "" } = useParams();
@@ -64,6 +66,9 @@ function BookingFlow({ business }: { business: PublicBusiness }) {
   const [time, setTime] = useState<string | null>(null);
   const [booked, setBooked] = useState<Booking | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Set while a deposit is due: the booking holds the slot until it's paid.
+  const [held, setHeld] = useState<{ booking: Booking; payment: DepositCheckout } | null>(null);
+  const [heldError, setHeldError] = useState<string | null>(null);
 
   const service = business.services.find((s) => s.id === serviceId);
   const staffForService = business.staff.filter((s) => s.services.some((x) => x.serviceId === serviceId));
@@ -71,6 +76,8 @@ function BookingFlow({ business }: { business: PublicBusiness }) {
 
   const availability = useAvailability(business.slug, { serviceId, date, staffId: specificStaffId });
   const createBooking = useCreateBooking(business.slug);
+  const payForHold = usePayDeposit();
+  const cancelBooking = useCancelBooking();
 
   // If the chosen time vanished (someone else booked it while this page was open), forget it.
   const selectedSlot = availability.data?.slots.find((slot) => slot.time === time);
@@ -99,13 +106,47 @@ function BookingFlow({ business }: { business: PublicBusiness }) {
     createBooking.mutate(
       { serviceId, staffId: specificStaffId, startsAt: toStartsAt(date, chosenTime, business.timezone) },
       {
-        onSuccess: (booking) => setBooked(booking),
+        onSuccess: ({ booking, payment }) => {
+          if (!payment) return setBooked(booking);
+          // A deposit is due: the slot is held for us while we pay.
+          setHeld({ booking, payment });
+          openPayment(booking, payment);
+        },
         onError: (err) => {
           setError(describeError(err));
           setTime(null); // the slot is probably gone: make them choose again
         },
       },
     );
+  }
+
+  // Razorpay's window → its result → our API, which checks the signature and confirms.
+  // The browser never decides that a payment succeeded; it only passes Razorpay's answer on.
+  function openPayment(booking: Booking, payment: DepositCheckout) {
+    setHeldError(null);
+    payForHold.mutate(
+      { booking, checkout: payment },
+      {
+        onSuccess: ({ status }) => {
+          setHeld(null);
+          setBooked({ ...booking, status, holdExpiresAt: null, payment: { amountCents: payment.amountCents, currency: payment.currency, status: "paid" } });
+        },
+        // Closing the window isn't an error: the held panel already offers "Pay" again.
+        onError: (err) => {
+          if (!(err instanceof CheckoutClosed)) setHeldError(describeError(err));
+        },
+      },
+    );
+  }
+
+  function giveUpHold(booking: Booking) {
+    cancelBooking.mutate(booking.id, {
+      onSuccess: () => {
+        setHeld(null);
+        setTime(null);
+      },
+      onError: (err) => setHeldError(describeError(err)),
+    });
   }
 
   function confirm() {
@@ -119,6 +160,20 @@ function BookingFlow({ business }: { business: PublicBusiness }) {
 
   if (booked && user) {
     return <ConfirmedView booking={booked} email={user.email} onBookAnother={() => { setBooked(null); setTime(null); }} />;
+  }
+
+  if (held) {
+    return (
+      <HeldView
+        booking={held.booking}
+        depositCents={held.payment.amountCents}
+        busy={payForHold.isPending}
+        error={heldError}
+        onPay={() => openPayment(held.booking, held.payment)}
+        onCancel={() => giveUpHold(held.booking)}
+        cancelling={cancelBooking.isPending}
+      />
+    );
   }
 
   return (
@@ -179,6 +234,8 @@ function BookingFlow({ business }: { business: PublicBusiness }) {
                 whenLabel={whenLabel}
                 busy={createBooking.isPending}
                 onConfirm={confirm}
+                depositCents={depositFor(service.priceCents, business.depositPercent)}
+                freeCancelHours={business.freeCancelHours}
               />
             </aside>
           )}
