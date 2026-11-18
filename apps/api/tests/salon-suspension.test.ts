@@ -27,9 +27,9 @@ async function bookableSalon() {
   return { salon, priya };
 }
 
-const suspend = (auth: object, salon: Salon, reason = "Unpaid platform fees") =>
+const suspend = (auth: Record<string, string>, salon: Salon, reason = "Unpaid platform fees") =>
   request(app).post(`/admin/businesses/${salon.businessId}/suspend`).set(auth).send({ reason });
-const book = (auth: object, salon: Salon, clock: string) =>
+const book = (auth: Record<string, string>, salon: Salon, clock: string) =>
   request(app).post(`/b/${salon.slug}/bookings`).set(auth).send({ serviceId: salon.serviceId, startsAt: atISO(clock) });
 
 describe("who can suspend", () => {
