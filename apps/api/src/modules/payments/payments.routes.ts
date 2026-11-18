@@ -1,5 +1,17 @@
 import express, { Router } from "express";
+import { z } from "zod";
+import { currentUserId, requireAuth } from "../../middleware/auth.js";
+import { getOwnerPayments } from "./payments.owner.js";
 import { handleRazorpayWebhook } from "./payments.webhook.js";
+
+// ── Mounted at /businesses: the owner's Payments tab ───────────────────────
+export const ownerPaymentsRouter = Router();
+
+// GET /businesses/:id/payments → deposit settings, totals and recent ledger rows
+ownerPaymentsRouter.get("/:id/payments", requireAuth, async (req, res) => {
+  const businessId = z.string().uuid().parse(req.params.id);
+  res.json(await getOwnerPayments(businessId, currentUserId(req)));
+});
 
 // ── Mounted at /webhooks ───────────────────────────────────────────────────
 export const webhooksRouter = Router();

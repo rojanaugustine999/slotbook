@@ -5,6 +5,7 @@ import { DashboardHome, DashboardLayout, DashboardNew } from "./dashboard/Dashbo
 import { ServicesPage } from "./dashboard/ServicesPage";
 import { StaffMemberPage } from "./dashboard/StaffMemberPage";
 import { StaffPage } from "./dashboard/StaffPage";
+import { PaymentsPage } from "./dashboard/PaymentsPage";
 import { StatsPage } from "./dashboard/StatsPage";
 import { Layout } from "./Layout";
 import { Home, NotFound } from "./pages/Home";
@@ -27,6 +28,7 @@ export function App() {
           <Route path="services" element={<ServicesPage />} />
           <Route path="staff" element={<StaffPage />} />
           <Route path="staff/:staffId" element={<StaffMemberPage />} />
+          <Route path="payments" element={<PaymentsPage />} />
         </Route>
         <Route path=":slug" element={<BookingPage />} />
         <Route path="*" element={<NotFound />} />

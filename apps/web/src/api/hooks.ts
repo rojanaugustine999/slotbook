@@ -2,7 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useAuth } from "../auth/AuthProvider";
 import { payDeposit } from "../lib/razorpay";
 import { api } from "./client";
-import type { AuditEntry, Availability, Booking, Calendar, CreateBookingInput, DepositCheckout, OwnedBusiness, OwnerBooking, OwnerService, OpenRefund, OwnerStatusChange, PublicBusiness, PublicBusinessCard, RazorpayResult, SalonBalance, ServiceInput, StaffMember, Stats, TimeOff } from "./types";
+import type { AuditEntry, Availability, Booking, Calendar, CreateBookingInput, DepositCheckout, OwnedBusiness, OwnerBooking, OwnerService, OpenRefund, OwnerPayments, OwnerStatusChange, PublicBusiness, PublicBusinessCard, RazorpayResult, SalonBalance, ServiceInput, StaffMember, Stats, TimeOff } from "./types";
 import type { HoursBlock } from "../dashboard/hours";
 
 // ─── Data hooks ──────────────────────────────────────────────────────────────
@@ -352,4 +352,24 @@ export function useRecordPayout() {
 
 export function useRetryRefund() {
   return useAdminMutation((refundId: string) => api(`/admin/refunds/${refundId}/retry`, { method: "POST" }));
+}
+
+// ─── Owner: Payments tab ─────────────────────────────────────────────────────
+
+export function useOwnerPayments(businessId: string) {
+  return useQuery({
+    queryKey: ["owner-payments", businessId],
+    queryFn: async () => api<OwnerPayments>(`/businesses/${businessId}/payments`),
+  });
+}
+
+export function useSaveDepositSettings(businessId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { depositPercent: number | null; freeCancelHours: number }) => api(`/businesses/${businessId}`, { method: "PATCH", body: input }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["owner-payments", businessId] });
+      void queryClient.invalidateQueries({ queryKey: ["business"] }); // the public booking page shows the deposit
+    },
+  });
 }

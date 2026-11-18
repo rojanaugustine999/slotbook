@@ -195,3 +195,26 @@ export interface CreateBookingInput {
   startsAt: string; // ISO with a timezone offset
   notes?: string;
 }
+
+// ── Owner's Payments tab: GET /businesses/:id/payments ──────────────────────
+export type LedgerEntryType = "deposit" | "commission" | "refund" | "payout";
+
+export interface OwnerPayments {
+  settings: {
+    depositPercent: number | null; // null: no deposit
+    freeCancelHours: number;
+    paymentsAvailable: boolean; // false: the server has no Razorpay keys, so nothing is charged
+    commissionPercent: number;
+  };
+  // Each type added up, in paise, from the salon's side: deposit +, the others −.
+  totals: Record<LedgerEntryType, number>;
+  balanceCents: number; // what SlotBook owes the salon now
+  entries: {
+    id: string;
+    type: LedgerEntryType;
+    amountCents: number; // signed, like the totals
+    createdAt: string;
+    booking: { id: string; startsAt: string; service: { name: string }; customer: { name: string } } | null;
+    payoutReference: string | null;
+  }[];
+}

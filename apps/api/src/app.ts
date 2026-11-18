@@ -15,7 +15,7 @@ import { availabilityRouter } from "./modules/availability/availability.routes.j
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { bookingsRouter, meRouter, ownerBookingsRouter } from "./modules/bookings/bookings.routes.js";
 import { businessesRouter, publicRouter } from "./modules/businesses/businesses.routes.js";
-import { webhooksRouter } from "./modules/payments/payments.routes.js";
+import { ownerPaymentsRouter, webhooksRouter } from "./modules/payments/payments.routes.js";
 import { servicesRouter } from "./modules/services/services.routes.js";
 import { statsRouter } from "./modules/stats/stats.routes.js";
 import { staffRouter } from "./modules/staff/staff.routes.js";
@@ -109,6 +109,7 @@ export function createApp(options: AppOptions = {}) {
   app.use("/businesses", ownerBookingsRouter); // adds /businesses/:id/bookings
   app.use("/businesses", statsRouter); // adds /businesses/:id/stats
   app.use("/businesses", timeOffRouter); // adds /businesses/:id/staff/:staffId/time-off
+  app.use("/businesses", ownerPaymentsRouter); // adds /businesses/:id/payments
   app.use("/b", publicRouter);
   app.use("/b", availabilityRouter); // adds /b/:slug/availability
   app.use("/b", bookingsRouter); // adds /b/:slug/bookings
