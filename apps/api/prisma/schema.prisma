@@ -26,6 +26,9 @@ model User {
   // The SlotBook super admin (the platform, not a salon). Never set through the API:
   // only a server-side script can grant it (see scripts/grant-admin.ts).
   isPlatformAdmin Boolean  @default(false) @map("is_platform_admin")
+  /// Set when the person deleted their account. The row stays (salons keep their booking
+  /// history and the ledger stays intact) but everything personal in it has been wiped.
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
 
   ownedBusinesses Business[]
   staffProfiles   Staff[]

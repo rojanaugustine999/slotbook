@@ -94,6 +94,7 @@ export function createApp(options: AppOptions = {}) {
     app.use("/auth/login", limiters.auth);
     app.use("/auth/register", limiters.auth);
     app.use("/auth/password", limiters.auth); // guessing the current password is guessing the password
+    app.use("/auth/me/delete", limiters.auth); // same: it checks the password
     app.use("/b/:slug/availability", limiters.availability);
     // The booking limit counts per user, so it needs to know who the user is first.
     app.post("/b/:slug/bookings", requireAuth, limiters.booking);

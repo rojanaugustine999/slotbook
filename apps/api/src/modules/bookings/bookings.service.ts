@@ -265,7 +265,11 @@ async function getMyChangeableBooking(customerId: string, bookingId: string) {
   return booking;
 }
 
-export async function cancelMyBooking(customerId: string, bookingId: string) {
+/**
+ * The customer cancels. notifyCustomer: false is for deleting an account, where a
+ * "your booking is cancelled" email would go to an address that is about to be wiped.
+ */
+export async function cancelMyBooking(customerId: string, bookingId: string, options: { notifyCustomer?: boolean } = {}) {
   const booking = await getMyChangeableBooking(customerId, bookingId);
 
   // "Check, then guarded update": the WHERE repeats the status we checked.
@@ -290,7 +294,7 @@ export async function cancelMyBooking(customerId: string, bookingId: string) {
   const deposit = await settleDeposit(booking.id, { kind: "customer_cancelled", startsAt: booking.startsAt, now: new Date(), freeCancelHours: booking.business.freeCancelHours });
 
   // Stop the reminders, and tell the customer it's cancelled.
-  await runSafely("cancel reminders", () => cancelForBooking(booking.id, { notifyCustomer: true }));
+  await runSafely("cancel reminders", () => cancelForBooking(booking.id, { notifyCustomer: options.notifyCustomer ?? true }));
   // Read again only if the deposit changed, so the answer shows "refunded".
   return deposit === "refund" ? prisma.booking.findUniqueOrThrow({ where: { id: booking.id }, select: bookingFields }) : cancelled;
 }

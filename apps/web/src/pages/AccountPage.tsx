@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ApiError, describeError } from "../api/client";
-import { useChangePassword, useSignOutOtherDevices, useUpdateMe } from "../api/hooks";
+import { useChangePassword, useDeleteAccount, useMyBusinesses, useSignOutOtherDevices, useUpdateMe } from "../api/hooks";
 import type { User } from "../api/types";
 import { useAuthDialog } from "../auth/AuthDialog";
 import { useAuth } from "../auth/AuthProvider";
@@ -17,6 +17,20 @@ import { Notice } from "../ui/Notice";
 export function AccountPage() {
   const { status, user, signOut } = useAuth();
   const openAuth = useAuthDialog();
+  const [deleted, setDeleted] = useState<{ cancelledBookings: number } | null>(null);
+
+  if (deleted) {
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center py-20 text-center">
+        <h1 className="text-xl font-medium">Your account has been deleted</h1>
+        <p className="mt-2 text-ink-2">
+          Your details have been removed and you've been signed out everywhere.
+          {deleted.cancelledBookings > 0 && ` ${deleted.cancelledBookings} upcoming ${deleted.cancelledBookings === 1 ? "booking was" : "bookings were"} cancelled.`}
+        </p>
+        <Link to="/" className="mt-6 font-medium text-accent underline underline-offset-2">Go to the home page</Link>
+      </div>
+    );
+  }
 
   if (status === "loading") {
     return (
@@ -52,6 +66,7 @@ export function AccountPage() {
       <Details key={`${user.name}|${user.phone ?? ""}`} user={user} />
       <Password />
       <Devices />
+      <DeleteAccount onDeleted={(result) => { setDeleted(result); void signOut(); }} />
       {/* On phones the header has no room for Sign out, so it lives here too. */}
       <div className="flex justify-center pb-4">
         <Button variant="ghost" onClick={() => void signOut()}>
@@ -208,6 +223,55 @@ function Devices() {
       <Button className="mt-4" loading={signOutOthers.isPending} onClick={() => signOutOthers.mutate()}>
         Sign out everywhere else
       </Button>
+    </Card>
+  );
+}
+
+// ─── Delete account ─────────────────────────────────────────────────────────
+
+function DeleteAccount({ onDeleted }: { onDeleted: (result: { cancelledBookings: number }) => void }) {
+  const remove = useDeleteAccount();
+  const businesses = useMyBusinesses();
+  const [password, setPassword] = useState("");
+  const wrongPassword = remove.error instanceof ApiError && remove.error.code === "WRONG_PASSWORD";
+  const owned = businesses.data ?? [];
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!window.confirm("Delete your SlotBook account? This can't be undone.")) return;
+    remove.mutate(password, { onSuccess: onDeleted });
+  }
+
+  return (
+    <Card title="Delete account">
+      {owned.length > 0 ? (
+        // Owners are refused by the API too; this just says so before they try.
+        <p className="text-[15px] text-ink-2">
+          You own {owned.map((b) => b.name).join(", ")}. A salon has to be closed before its owner's account can be deleted:
+          please contact SlotBook.
+        </p>
+      ) : (
+        <form onSubmit={submit} className="space-y-4" noValidate>
+          <ul className="list-disc space-y-1 pl-5 text-[15px] text-ink-2">
+            <li>Your name, email and phone are removed, and you're signed out everywhere.</li>
+            <li>Upcoming bookings are cancelled. Deposits follow the usual rule: refunded if it's early enough.</li>
+            <li>Salons keep past visits in their records, under "Deleted user".</li>
+            <li>This can't be undone. You can sign up again later with the same email.</li>
+          </ul>
+          <Field
+            label="Your password, to confirm"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            error={wrongPassword ? "That isn't your password." : undefined}
+          />
+          {remove.isError && !wrongPassword && <Notice tone="error">{describeError(remove.error)}</Notice>}
+          <Button type="submit" variant="danger" loading={remove.isPending} disabled={!password}>
+            Delete my account
+          </Button>
+        </form>
+      )}
     </Card>
   );
 }

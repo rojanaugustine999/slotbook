@@ -2,7 +2,7 @@ import { Router, type CookieOptions, type Response } from "express";
 import { isProd } from "../../lib/env.js";
 import { currentUserId, requireAuth } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
-import { changePasswordSchema, loginSchema, registerSchema, updateMeSchema } from "./auth.schema.js";
+import { changePasswordSchema, deleteAccountSchema, loginSchema, registerSchema, updateMeSchema } from "./auth.schema.js";
 import * as auth from "./auth.service.js";
 
 const REFRESH_COOKIE = "sb_refresh";
@@ -60,6 +60,14 @@ authRouter.patch("/me", requireAuth, validateBody(updateMeSchema), async (req, r
 authRouter.post("/password", requireAuth, validateBody(changePasswordSchema), async (req, res) => {
   const signedOut = await auth.changePassword(currentUserId(req), req.cookies?.[REFRESH_COOKIE], req.body);
   res.json({ signedOutOtherDevices: signedOut });
+});
+
+// POST /auth/me/delete  { password }  → anonymise the account (see auth.service.ts)
+// Rate-limited like login in app.ts. Also clears this browser's sign-in cookie.
+authRouter.post("/me/delete", requireAuth, validateBody(deleteAccountSchema), async (req, res) => {
+  const result = await auth.deleteAccount(currentUserId(req), req.body);
+  res.clearCookie(REFRESH_COOKIE, cookieOptions);
+  res.json(result);
 });
 
 // POST /auth/sessions/revoke-others  → "Sign out everywhere else"

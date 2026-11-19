@@ -428,3 +428,13 @@ export function useSignOutOtherDevices() {
     mutationFn: async () => api<{ signedOutOtherDevices: number }>("/auth/sessions/revoke-others", { method: "POST" }),
   });
 }
+
+/**
+ * Deletes (anonymises) the signed-in account. The caller then signs out locally:
+ * the API has already ended every session and cleared the sign-in cookie.
+ */
+export function useDeleteAccount() {
+  return useMutation({
+    mutationFn: async (password: string) => api<{ cancelledBookings: number }>("/auth/me/delete", { method: "POST", body: { password } }),
+  });
+}

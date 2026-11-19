@@ -45,3 +45,7 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export type UpdateMeInput = z.infer<typeof updateMeSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+
+// Deleting the account needs the password again: a stolen session alone mustn't be enough.
+export const deleteAccountSchema = z.object({ password: z.string().min(1) });
+export type DeleteAccountInput = z.infer<typeof deleteAccountSchema>;

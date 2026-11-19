@@ -4,7 +4,8 @@ import jwt from "jsonwebtoken";
 import { prisma } from "../../lib/db.js";
 import { env } from "../../lib/env.js";
 import { conflict, HttpError, unauthorized } from "../../lib/errors.js";
-import type { ChangePasswordInput, LoginInput, RegisterInput, UpdateMeInput } from "./auth.schema.js";
+import { cancelMyBooking } from "../bookings/bookings.service.js";
+import type { ChangePasswordInput, DeleteAccountInput, LoginInput, RegisterInput, UpdateMeInput } from "./auth.schema.js";
 
 // ─── How auth works in SlotBook ──────────────────────────────────────────────
 // ACCESS token  : short-lived JWT (15 min). Sent as "Authorization: Bearer ...".
@@ -112,8 +113,13 @@ export async function logout(refreshToken: string | undefined) {
   });
 }
 
-export function getMe(userId: string) {
-  return prisma.user.findUniqueOrThrow({ where: { id: userId }, select: publicUserSelect });
+export async function getMe(userId: string) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { ...publicUserSelect, deletedAt: true } });
+  // A deleted account's last access token works for a few more minutes; this makes any other
+  // open tab sign out on its next check instead of showing "Deleted user".
+  if (user.deletedAt) throw unauthorized("This account has been deleted");
+  const { deletedAt: _deleted, ...me } = user;
+  return me;
 }
 
 // ─── Your own account ────────────────────────────────────────────────────────
@@ -153,4 +159,64 @@ export async function signOutOtherDevices(userId: string, currentRefreshToken: s
     where: { userId, revokedAt: null, ...(keep ? { tokenHash: { not: keep } } : {}) },
   });
   return count;
+}
+
+// ─── Deleting your account ──────────────────────────────────────────────────
+// The user row is NOT deleted: salons keep their booking history and stats, and the money
+// ledger must never change. Instead everything personal is wiped (anonymised):
+//   - name "Deleted user"; email replaced (which frees it to sign up again); phone removed;
+//     the notes they typed on their bookings removed; an unusable password; every session ended;
+//   - upcoming bookings are cancelled through the normal customer cancel, so deposits follow
+//     the usual rule (refunded if in time) and the salon's calendar frees up.
+// Salon owners can't do this yet: a salon needs closing first (staff, bookings, money owed).
+
+export async function deleteAccount(userId: string, input: DeleteAccountInput) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { passwordHash: true, deletedAt: true } });
+  if (user.deletedAt) throw unauthorized("This account has been deleted");
+
+  // A session alone isn't enough to destroy the account: the password proves it's really you.
+  if (!(await bcrypt.compare(input.password, user.passwordHash))) {
+    throw new HttpError(400, "WRONG_PASSWORD", "Your password is incorrect");
+  }
+
+  const salons = await prisma.business.findMany({ where: { ownerId: userId }, select: { name: true } });
+  if (salons.length > 0) {
+    throw conflict(`You own ${salons.map((s) => s.name).join(", ")}. A salon has to be closed before its owner's account can be deleted: please contact SlotBook.`, "OWNS_SALON");
+  }
+
+  // Upcoming bookings first, one by one through the normal cancel (deposit rules, holds, reminders).
+  const upcoming = await prisma.booking.findMany({
+    where: { customerId: userId, status: { in: ["pending", "confirmed"] }, startsAt: { gt: new Date() } },
+    select: { id: true },
+  });
+  let cancelled = 0;
+  for (const booking of upcoming) {
+    try {
+      await cancelMyBooking(userId, booking.id, { notifyCustomer: false });
+      cancelled++;
+    } catch (err) {
+      // Changed by the salon a moment ago (e.g. already cancelled): nothing left to cancel.
+      if (!(err instanceof HttpError && err.status === 409)) throw err;
+    }
+  }
+
+  // Then wipe everything personal, all together.
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: {
+        name: "Deleted user",
+        email: `deleted-${userId}@deleted.invalid`, // unique, and ".invalid" can never receive mail
+        phone: null,
+        passwordHash: await bcrypt.hash(randomBytes(32).toString("hex"), BCRYPT_ROUNDS), // nobody knows it
+        isPlatformAdmin: false,
+        deletedAt: new Date(),
+      },
+    }),
+    prisma.booking.updateMany({ where: { customerId: userId }, data: { notes: null } }),
+    prisma.staff.updateMany({ where: { userId }, data: { userId: null } }),
+    prisma.refreshToken.deleteMany({ where: { userId } }), // signed out everywhere
+  ]);
+
+  return { cancelledBookings: cancelled };
 }
