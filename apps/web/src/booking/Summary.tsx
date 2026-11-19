@@ -15,9 +15,10 @@ interface SummaryProps {
   onConfirm: () => void;
   depositCents: number | null; // null: nothing to pay now
   freeCancelHours: number;
+  emailsEnabled: boolean;
 }
 
-export function Summary({ serviceName, durationMin, priceCents, staffLabel, whenLabel, busy, onConfirm, depositCents, freeCancelHours }: SummaryProps) {
+export function Summary({ serviceName, durationMin, priceCents, staffLabel, whenLabel, busy, onConfirm, depositCents, freeCancelHours, emailsEnabled }: SummaryProps) {
   return (
     <div className="rounded-card border border-line bg-surface p-5">
       <h2 className="text-[15px] font-medium">Your booking</h2>
@@ -41,7 +42,9 @@ export function Summary({ serviceName, durationMin, priceCents, staffLabel, when
       <p className="mt-3 text-center text-xs text-ink-3">
         {depositCents
           ? `Paid securely through Razorpay. Cancel at least ${cancelWindow(freeCancelHours)} before to get your deposit back.`
-          : "You'll get an email confirmation, and a reminder before your appointment."}
+          : emailsEnabled
+            ? "You'll get an email confirmation, and a reminder before your appointment."
+            : "It's saved in My bookings straight away."}
       </p>
     </div>
   );
@@ -130,7 +133,7 @@ export function MobileConfirmBar({ whenLabel, serviceName, busy, onConfirm, depo
   );
 }
 
-export function ConfirmedView({ booking, email, onBookAnother }: { booking: Booking; email: string; onBookAnother: () => void }) {
+export function ConfirmedView({ booking, email, emailsEnabled, onBookAnother }: { booking: Booking; email: string; emailsEnabled: boolean; onBookAnother: () => void }) {
   return (
     <div className="mx-auto max-w-md rounded-card border border-line bg-surface p-6 text-center sm:p-8">
       <div className="mx-auto grid size-12 place-items-center rounded-full bg-accent-soft text-accent">
@@ -139,7 +142,8 @@ export function ConfirmedView({ booking, email, onBookAnother }: { booking: Book
         </svg>
       </div>
       <h1 className="mt-4 text-xl font-medium">You're booked</h1>
-      <p className="mt-1 text-[15px] text-ink-2">We've sent a confirmation to {email}.</p>
+      {/* Only claim an email went out when one really did (see emailsEnabled in the API). */}
+      <p className="mt-1 text-[15px] text-ink-2">{emailsEnabled ? `We've sent a confirmation to ${email}.` : "It's in My bookings, where you can also cancel or move it."}</p>
 
       <dl className="mt-6 space-y-2.5 rounded-control bg-sunken p-4 text-left text-[15px]">
         <div className="flex justify-between gap-4">

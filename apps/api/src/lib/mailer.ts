@@ -11,6 +11,11 @@ export interface Email {
 // would have gone out. It keeps only the latest 100 so it can't grow forever.
 export const outbox: Email[] = [];
 
+/** True when emails really go out. Without a key they only reach the log (and `outbox`). */
+export function emailsEnabled(): boolean {
+  return Boolean(env.RESEND_API_KEY);
+}
+
 export async function sendEmail(email: Email): Promise<void> {
   if (!env.RESEND_API_KEY) {
     outbox.push(email);

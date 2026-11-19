@@ -200,3 +200,15 @@ describe("GET /b?q=: searching the salon list", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("GET /b/:slug tells the web app whether emails really go out", () => {
+  it("says emailsEnabled: false without an email key, so the booking page promises no email", async () => {
+    // vitest.config.ts sets RESEND_API_KEY to "" for tests: emails only reach the in-memory outbox.
+    const salon = await setupSalon(app);
+
+    const res = await request(app).get(`/b/${salon.slug}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.emailsEnabled ?? res.body.business?.emailsEnabled).toBe(false);
+  });
+});

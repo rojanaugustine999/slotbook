@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/db.js";
 import { conflict, HttpError, notFound } from "../../lib/errors.js";
+import { emailsEnabled } from "../../lib/mailer.js";
 import { paymentsConfigured } from "../../lib/razorpay.js";
 import type { CreateBusinessInput, UpdateBusinessInput } from "./businesses.schema.js";
 
@@ -136,6 +137,11 @@ export async function getPublicBusiness(slug: string) {
   if (!business) throw notFound("Business not found");
   const { suspendedAt, ...publicFields } = business; // the flag itself isn't sent to the public
   if (suspendedAt) throw salonUnavailable();
-  // Without Razorpay keys no deposit is charged, so don't show one either.
-  return { ...publicFields, depositPercent: paymentsConfigured() ? business.depositPercent : null };
+  return {
+    ...publicFields,
+    // Without Razorpay keys no deposit is charged, so don't show one either.
+    depositPercent: paymentsConfigured() ? business.depositPercent : null,
+    // So the booking page only promises a confirmation email when one is really sent.
+    emailsEnabled: emailsEnabled(),
+  };
 }

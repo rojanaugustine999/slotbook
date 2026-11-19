@@ -173,7 +173,7 @@ function BookingFlow({ business }: { business: PublicBusiness }) {
   }
 
   if (booked && user) {
-    return <ConfirmedView booking={booked} email={user.email} onBookAnother={() => { setBooked(null); setTime(null); }} />;
+    return <ConfirmedView booking={booked} email={user.email} emailsEnabled={business.emailsEnabled ?? false} onBookAnother={() => { setBooked(null); setTime(null); }} />;
   }
 
   if (held) {
@@ -250,6 +250,7 @@ function BookingFlow({ business }: { business: PublicBusiness }) {
                 onConfirm={confirm}
                 depositCents={depositCents}
                 freeCancelHours={business.freeCancelHours}
+                emailsEnabled={business.emailsEnabled ?? false}
               />
             </aside>
           )}

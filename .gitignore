@@ -9,3 +9,6 @@ coverage/
 
 # Local tool settings
 .claude/
+
+# TypeScript build cache
+*.tsbuildinfo

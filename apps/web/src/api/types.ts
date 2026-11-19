@@ -73,6 +73,7 @@ export interface PublicBusiness {
   address: string | null;
   depositPercent: number | null; // null: no deposit, everything is paid at the salon
   freeCancelHours: number; // cancel at least this many hours ahead to get the deposit back
+  emailsEnabled?: boolean; // false while emails only go to the server log: don't promise any
   services: PublicService[];
   staff: PublicStaff[];
 }
